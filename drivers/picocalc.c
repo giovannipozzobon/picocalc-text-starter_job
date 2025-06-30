@@ -2,6 +2,7 @@
 #include "pico/stdlib.h"
 #include "pico/stdio/driver.h"
 
+#include "audio.h"
 #include "display.h"
 #include "keyboard.h"
 #include "southbridge.h"
@@ -64,6 +65,7 @@ void picocalc_init(led_callback_t led_set_callback)
     sb_init();
     display_init(led_set_callback, NULL);
     keyboard_init(picocalc_chars_available_notify);
+    audio_init();
 
     stdio_set_driver_enabled(&my_stdio_driver, true);
     stdio_set_translate_crlf(&my_stdio_driver, true);

@@ -16,4 +16,8 @@ void bye(void);
 void box(void);
 void battery(void);
 void backlight(void);
+void audiotest(void);
+void beep(void);
+void play(void);
+void songs(void);
 

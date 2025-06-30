@@ -40,6 +40,10 @@ add_executable(picocalc-text-starter
         main.c
         commands.c
         commands.h
+        songs.c
+        songs.h
+        drivers/audio.c
+        drivers/audio.h
         drivers/display.c
         drivers/display.h
         drivers/font.c
@@ -80,6 +84,8 @@ target_link_libraries(picocalc-text-starter
         hardware_gpio
         hardware_i2c
         hardware_spi
+        hardware_pwm
+        hardware_clocks
         )
 
 # Add wireless library only for boards that support it

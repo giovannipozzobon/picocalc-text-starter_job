@@ -127,6 +127,68 @@ Returns a key; blocks if no key is available.
 
 # Low-Level Drivers
 
+## Audio
+
+This simple audio driver can play single channel notes using a PWM.
+
+The PicoCalc is configured with a limitation that prevents a simple PWM-based driver that can create stereo sound. This driver is limited to mono output.
+
+
+### audio_init
+
+`void audio_init(void)`
+
+Initialises the audio driver.
+
+
+### audio_play_tone
+
+`void audio_play_tone(uint16_t frequency, uint32_t duration_ms)`
+
+Plays a tone for a duration.
+
+#### Paramters
+
+- frequency - frequency of the tone in Hz
+- duration_ms – duration of the tone in milliseconds
+
+
+### audio_play_tone_async
+
+`void audio_play_tone_async(uint16_t frequency)`
+
+Plays a tone until stopped.
+
+#### Parameters
+
+- frequency - frequency of the tone in Hz
+
+
+### audio_stop
+
+`void audio_stop(void)`
+
+Stops a tone that is playing asynchronously.
+
+
+### audio_set_volume
+
+`void audio_set_volume(uint8_t volume)`
+
+Adjusts the volume.
+
+#### Parameters
+
+- volume – 0 quiet to 100 loud
+
+
+### audio_is_playing
+
+`bool audio_is_playing(void)`
+
+Return true if an asynchronous tone is playing.
+
+
 ## LCD
 
 The driver for the LCD display is optimised for displaying text. For performance, the display is operated in 65K colour depth (RGB565) and any colour from this colour depth can be chosen and used. 
