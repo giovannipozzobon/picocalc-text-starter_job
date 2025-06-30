@@ -2,6 +2,8 @@
 
 #include "font.h"
 
+#define LCD_SPI         (spi1)          // SPI interface for the LCD display
+
 // Raspberry Pi Pico board GPIO pins
 #define LCD_SCL         (10)            // serial clock (SCL)
 #define LCD_SDI         (11)            // serial data in (SDI)
@@ -60,18 +62,29 @@
 #define STATE_ESCAPE    (1)             // escape character received
 #define STATE_CS        (2)             // control sequence introducer (CSI) received
 #define STATE_DEC       (3)             // DEC private mode sequence (?)
+#define STATE_G0_SET    (4)             // setting G0 character set ESC(
+#define STATE_G1_SET    (5)             // setting G1 character set ESC)
 
 // Control characters
-#define CHR_BEL        (0x07)          // Bell
-#define CHR_BS         (0x08)          // Backspace
-#define CHR_HT         (0x09)          // Horizontal Tab
-#define CHR_LF         (0x0A)          // Line Feed
-#define CHR_VT         (0x0B)          // Vertical Tab
-#define CHR_FF         (0x0C)          // Form Feed
-#define CHR_CR         (0x0D)          // Carriage Return
-#define CHR_CAN        (0x18)          // Cancel
-#define CHR_SUB        (0x1A)          // Substitute
-#define CHR_ESC        (0x1B)          // Escape
+#define CHR_BEL         (0x07)          // Bell
+#define CHR_BS          (0x08)          // Backspace
+#define CHR_HT          (0x09)          // Horizontal Tab
+#define CHR_LF          (0x0A)          // Line Feed
+#define CHR_VT          (0x0B)          // Vertical Tab
+#define CHR_FF          (0x0C)          // Form Feed
+#define CHR_CR          (0x0D)          // Carriage Return
+#define CHR_SO          (0x0E)          // Shift Out (select G1 character set)
+#define CHR_SI          (0x0F)          // Shift In (select G0 character set)
+#define CHR_CAN         (0x18)          // Cancel
+#define CHR_SUB         (0x1A)          // Substitute
+#define CHR_ESC         (0x1B)          // Escape
+
+// Character set definitions
+#define CHARSET_ASCII   (0)             // ASCII character set
+#define CHARSET_DEC     (1)             // DEC Special Character Set (line drawing)
+
+#define G0_CHARSET      (0)             // G0 character set
+#define G1_CHARSET      (1)             // G0 and G1 character sets
 
 // Display parameters
 #define WIDTH           (320)           // pixels across the LCD
@@ -90,12 +103,17 @@
 
 
 // Defaults
-#define FOREGROUND      RGB(216, 240, 255)  // white phosphor
-#define BACKGROUND      RGB(0, 0, 0)        // black 
+#define WHITE_PHOSPHOR  RGB(216, 240, 255)  // white phosphor
+#define GREEN_PHOSPHOR  RGB(51, 255, 102)   // green phosphor
+#define AMBER_PHOSPHOR  RGB(255, 255, 51)   // amber phosphor
+#define FOREGROUND      WHITE_PHOSPHOR      // default foreground color
+#define BACKGROUND      RGB(0, 0, 0)        // default background color
 #define BRIGHT          RGB(255, 255, 255)  // white
 
 
+typedef void (*led_callback_t)(uint8_t);
+
 // Function prototypes
-void display_init();
+void display_init(led_callback_t led_callback);
 bool display_emit_available();
 void display_emit(char c);

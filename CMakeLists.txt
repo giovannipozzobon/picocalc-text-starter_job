@@ -23,12 +23,12 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD pico2 CACHE STRING "Board type")
+set(PICO_BOARD pico2_w CACHE STRING "Board type")
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
-project(simple C CXX ASM)
+project(picocalc-text-starter C CXX ASM)
 
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
@@ -36,42 +36,56 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(simple
+add_executable(picocalc-text-starter
         main.c
+        commands.c
+        commands.h
         drivers/display.c
         drivers/display.h
         drivers/keyboard.c
         drivers/keyboard.h
         drivers/font.c
         drivers/font.h
+        drivers/onboard_led.c
+        drivers/onboard_led.h
         drivers/picocalc.c
         drivers/picocalc.h
+        drivers/southbridge.c
+        drivers/southbridge.h
         )
 
-pico_set_program_name(simple "simple")
-pico_set_program_version(simple "0.1")
+pico_set_program_name(picocalc-text-starter "picocalc-text-starter")
+pico_set_program_version(picocalc-text-starter "0.1")
 
 # Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_uart(simple 0)
-pico_enable_stdio_usb(simple 0)
+pico_enable_stdio_uart(picocalc-text-starter 0)
+pico_enable_stdio_usb(picocalc-text-starter 0)
 
 # Add the standard library to the build
-target_link_libraries(simple
+target_link_libraries(picocalc-text-starter
         pico_stdlib)
 
 # Add the standard include files to the build
-target_include_directories(simple PRIVATE
+target_include_directories(picocalc-text-starter PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
 )
 
 # Add any user requested libraries
-target_link_libraries(simple
+target_link_libraries(picocalc-text-starter
         pico_stdlib
+        pico_printf
         pico_float
         hardware_gpio
         hardware_i2c
         hardware_spi
         )
 
-pico_add_extra_outputs(simple)
+# Add wireless library only for boards that support it
+if(PICO_BOARD STREQUAL "pico_w" OR PICO_BOARD STREQUAL "pico2_w")
+    target_link_libraries(picocalc-text-starter
+            pico_cyw43_arch_none
+            )
+endif()
+
+pico_add_extra_outputs(picocalc-text-starter)
 
