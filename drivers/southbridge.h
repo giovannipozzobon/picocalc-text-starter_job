@@ -34,3 +34,7 @@ void sb_init();
 
 uint16_t sb_read_keyboard(void);
 uint8_t sb_read_battery(void);
+uint8_t sb_read_lcd_backlight(void);
+void sb_write_lcd_backlight(uint8_t brightness);
+uint8_t sb_read_keyboard_backlight(void);
+void sb_write_keyboard_backlight(uint8_t brightness);

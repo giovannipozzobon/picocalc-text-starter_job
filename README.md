@@ -74,7 +74,7 @@ Returns true if the display can accept characters.
 
 `void display_emit(char c)`
 
-Display a character on the display or processes the ASNI escape sequence.
+Display a character on the display or processes the ANSI escape sequence.
 
 #### Parameters
 
@@ -290,7 +290,7 @@ Lights or unlights the on-board LED.
 
 ## Southbridge
 
-The southbridge is the MPU on the mainboard of the PicoCalc. This MPU interfaces the low-speed devices to the Pico.
+The southbridge is the MPU (STM32F103R8T6) on the mainboard of the PicoCalc. This MPU interfaces the low-speed devices to the Pico.
 
 ### sb_read_keyboard
 
@@ -304,6 +304,42 @@ Read a key status and code from the keyboard as a 16-bit half-word. The upper by
 `uint8_t sb_read_battery(void)`
 
 Read the battery status. The MSB of the returned valus is set if the battery is charging.
+
+### sb_read_lcd_backlight
+
+`uint8_t sb_read_lcd_backlight(void)`
+
+Read the current LCD Display backlight brightness, 0 (dark) to 255 (bright).
+
+
+### sb_write_lcd_backlight
+
+`void sb_write_lcd_backlight(uint8_t brightness)`
+
+Sets the LCD Display backlight brightness.
+
+#### Parameters
+
+- brightness – a value between 0 (dark) and 255 (bright)
+
+
+### sb_read_keyboard_backlight
+
+`uint8_t sb_read_keyboard_backlight(void)`
+
+Reads the current keyboard backlight brightness, 0 (dark) to 255 (bright).
+
+
+### sb_write_keyboard_backlight
+
+`void sb_write_keyboard_backlight(uint8_t brightness)`
+
+Sets the keyboard backlight brightness.
+
+#### Parameters
+
+- brightness – a value between 0 (dark) and 255 (bright)
+
 
 
 # Examples

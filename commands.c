@@ -14,6 +14,7 @@ volatile bool user_interrupt = false;
 
 // Command table - map of command names to functions
 static const command_t commands[] = {
+    {"backlight", backlight, "Show the backlight levels"},
     {"battery", battery, "Show the battery level"},
     {"box", box, "Draw a box on the screen"},
     {"bye", bye, "Reboot into BOOTSEL mode"},
@@ -52,6 +53,15 @@ void help()
     {
         printf("  %s - %s\n", commands[i].name, commands[i].description);
     }
+}
+
+void backlight()
+{
+    uint8_t lcd_backlight = sb_read_lcd_backlight();
+    uint8_t keyboard_backlight = sb_read_keyboard_backlight();
+
+    printf("LCD BackLight: %.0f%%\n", lcd_backlight / 2.55); // Convert to percentage
+    printf("Keyboard BackLight: %.0f%%\n", keyboard_backlight / 2.55); // Convert to percentage
 }
 
 void battery()

@@ -15,4 +15,5 @@ void speedtest(void);
 void bye(void);
 void box(void);
 void battery(void);
+void backlight(void);
 

@@ -95,3 +95,55 @@ void sb_init()
     // Set the initialised flag
     sb_initialised = true;
 }
+
+// Read the LCD backlight level
+uint8_t sb_read_lcd_backlight()
+{
+    uint8_t buffer[2];
+
+    sb_acquire();
+    buffer[0] = SB_REG_BKL;
+    sb_write(buffer, 1);
+    sb_read(buffer, 2);
+    sb_release();
+
+    return buffer[1];
+}
+
+// Write the LCD backlight level
+void sb_write_lcd_backlight(uint8_t brightness)
+{
+    uint8_t buffer[2];
+
+    sb_acquire();
+    buffer[0] = SB_REG_BKL;
+    buffer[1] = brightness;
+    sb_write(buffer, 2);
+    sb_release();
+}
+
+// Read the keyboard backlight level
+uint8_t sb_read_keyboard_backlight()
+{
+    uint8_t buffer[2];
+
+    sb_acquire();
+    buffer[0] = SB_REG_BK2;
+    sb_write(buffer, 1);
+    sb_read(buffer, 2);
+    sb_release();
+
+    return buffer[1];
+}
+
+// Write the keyboard backlight level
+void sb_write_keyboard_backlight(uint8_t brightness)
+{
+    uint8_t buffer[2];
+
+    sb_acquire();
+    buffer[0] = SB_REG_BK2;
+    buffer[1] = brightness;
+    sb_write(buffer, 2);
+    sb_release();
+}
