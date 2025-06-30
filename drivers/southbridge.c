@@ -7,13 +7,13 @@
 
 #include "pico/stdlib.h"
 #include "pico/platform.h"
-#include "pico/binary_info.h"
 #include "pico/multicore.h"
 #include "hardware/gpio.h"
 #include "hardware/i2c.h"
 
 #include "southbridge.h"
 
+static bool sb_initialised = false;
 static semaphore_t sb_sem;
 
 //
@@ -49,19 +49,6 @@ void sb_read(uint8_t *dst, size_t len)
 }
 
 
-// Initialize the southbridge
-void sb_init()
-{
-    i2c_init(SB_I2C, SB_BAUDRATE);
-    gpio_set_function(SB_SCL, GPIO_FUNC_I2C);
-    gpio_set_function(SB_SDA, GPIO_FUNC_I2C);
-    gpio_pull_up(SB_SCL);
-    gpio_pull_up(SB_SDA);
-
-    // initialize semaphore for I2C access
-    sem_init(&sb_sem, 1, 1);
-}
-
 // Read the keyboard
 uint16_t sb_read_keyboard()
 {
@@ -87,4 +74,24 @@ uint8_t sb_read_battery() {
     sb_release();
 
     return buffer[1];
+}
+
+// Initialize the southbridge
+void sb_init()
+{
+    if (sb_initialised) {
+        return; // already initialized
+    }
+
+    i2c_init(SB_I2C, SB_BAUDRATE);
+    gpio_set_function(SB_SCL, GPIO_FUNC_I2C);
+    gpio_set_function(SB_SDA, GPIO_FUNC_I2C);
+    gpio_pull_up(SB_SCL);
+    gpio_pull_up(SB_SDA);
+
+    // initialize semaphore for I2C access
+    sem_init(&sb_sem, 1, 1);
+
+    // Set the initialised flag
+    sb_initialised = true;
 }

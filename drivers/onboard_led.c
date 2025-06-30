@@ -11,49 +11,36 @@
 
 #include "onboard_led.h"
 
+static bool led_initialised = false; // Flag to indicate if the LED is initialized
+
+// Set the state of the on-board LED
+void led_set(bool led)
+{
+#ifdef PICO_DEFAULT_LED_PIN
+    gpio_put(PICO_DEFAULT_LED_PIN, led ? 1 : 0);
+#else
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led ? 1 : 0);
+#endif
+}
+
 // Initialize the LED driver
 int led_init()
 {
+    if (led_initialised) {
+        return 0; // Already initialized, return success
+    }
+
 #ifdef PICO_DEFAULT_LED_PIN
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
     return 0; // Return 0 to indicate success
 #else
+    // If you have a wifi driver, call the initialiser function instead
+
+    // This will initialize the CYW43 Wi-Fi chip and its LED
     return cyw43_arch_init();
 #endif
+
+    led_initialised = true; // Set the initialized flag
 }
 
-// Set the state of the LED
-//
-// The `led` parameter can be 0 to turn off all LEDs, or the number of the LED
-// to light.
-//
-// Additional LEDs can be added by extending the function. If you have more
-// LEDs, you can use 2, 3, etc. to control them.
-
-void led_set(uint8_t led)
-{
-#ifdef PICO_DEFAULT_LED_PIN
-    if (led == 0)
-    {
-        gpio_put(PICO_DEFAULT_LED_PIN, 0); // Turn off the LED
-        // Turn off all the LEDs here
-    }
-    else if (led == 1)
-    {
-        gpio_put(PICO_DEFAULT_LED_PIN, 1); // Turn on the LED
-    }
-    // Add more LEDs here
-#else
-    if (led == 0)
-    {
-        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0); // Turn off the LED
-        // Turn off all the LEDs here
-    }
-    else if (led == 1)
-    {
-        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1); // Turn on the LED
-    }
-    // Add more LEDs here
-#endif
-}

@@ -9,6 +9,11 @@
 
 #include "commands.h"
 
+void set_onboard_led(uint8_t led)
+{
+    led_set(led & 0x01);
+}
+
 int main()
 {
     char buffer[40];
@@ -20,9 +25,9 @@ int main()
     int led_init_result = led_init();
 
     stdio_init_all();
-    picocalc_init(led_init_result == 0 ? led_set : NULL);
+    picocalc_init(led_init_result == 0 ? set_onboard_led : NULL);
 
-    printf(" Hello from the PicoCalc Text Starter!\n\n");
+    printf("\033c Hello from the PicoCalc Text Starter!\n\n");
     printf("      Contributed to the community\n");
     printf("            by Blair Leduc.\n\n");
     printf("Type 'help' for a list of commands.\n\n");

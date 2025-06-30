@@ -1,4 +1,6 @@
 #pragma once  
 
+typedef void (*led_callback_t)(uint8_t);
+
 // Function prototypes
-void picocalc_init(void (*led_callback)(uint8_t));
+void picocalc_init(led_callback_t led_callback);

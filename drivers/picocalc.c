@@ -59,10 +59,10 @@ stdio_driver_t my_stdio_driver = {
     .next = NULL,
 };
 
-void picocalc_init(void (*led_set_callback)(uint8_t))
+void picocalc_init(led_callback_t led_set_callback)
 {
     sb_init();
-    display_init(led_set_callback);
+    display_init(led_set_callback, NULL);
     keyboard_init(picocalc_chars_available_notify);
 
     stdio_set_driver_enabled(&my_stdio_driver, true);

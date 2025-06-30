@@ -42,10 +42,12 @@ add_executable(picocalc-text-starter
         commands.h
         drivers/display.c
         drivers/display.h
-        drivers/keyboard.c
-        drivers/keyboard.h
         drivers/font.c
         drivers/font.h
+        drivers/keyboard.c
+        drivers/keyboard.h
+        drivers/lcd.c
+        drivers/lcd.h
         drivers/onboard_led.c
         drivers/onboard_led.h
         drivers/picocalc.c

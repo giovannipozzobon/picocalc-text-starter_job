@@ -19,34 +19,37 @@
 
 #include "string.h"
 
+#include "lcd.h"
 #include "display.h"
 
+// Colour Palette definitions
 //
-//  LCD Driver
-//
-//  This section contains the definitions and variables used for handling
-//  the LCD display.
-//
+// The RGB() macro can be used to create colors from this colour depth using 8-bits per
+// channel values.
 
-// Cursor positioning and scrolling
-uint8_t cursor_x = 0;      // cursor x position for drawing
-uint8_t cursor_y = 0;      // cursor y position for drawing
-uint16_t lcd_y_offset = 0; // offset for vertical scrolling
+// 3-bit terminal colours (based on VS Code)
+const uint16_t palette[8] = {
+    RGB(0, 0, 0),      // Black
+    RGB(205, 0, 0),    // Red
+    RGB(0, 205, 0),    // Green
+    RGB(205, 205, 0),  // Yellow
+    RGB(0, 0, 238),    // Blue
+    RGB(205, 0, 205),  // Magenta
+    RGB(0, 205, 205),  // Cyan
+    RGB(229, 229, 229) // White
+};
 
-uint16_t foreground = FOREGROUND; // default foreground colour (white phosphor)
-uint16_t background = BACKGROUND; // default background colour (black)
-
-bool underscore = false;    // underscore state (not implemented)
-bool reverse = false;       // reverse video state (not implemented)
-bool cursor_enabled = true; // cursor visibility state
-
-// Text drawing
-extern uint8_t font[];
-uint16_t char_buffer[8 * GLYPH_HEIGHT] __attribute__((aligned(4)));
-
-// Background processing
-semaphore_t lcd_sem;
-static repeating_timer_t cursor_timer;
+// Bright colours for the 3-bit terminal colours (based on VS Code)
+const uint16_t bright_palette[8] = {
+    RGB(127, 127, 127), // Bright Black (Gray)
+    RGB(255, 0, 0),     // Bright Red
+    RGB(0, 255, 0),     // Bright Green
+    RGB(255, 255, 0),   // Bright Yellow
+    RGB(92, 92, 255),   // Bright Blue
+    RGB(255, 0, 255),   // Bright Magenta
+    RGB(0, 255, 255),   // Bright Cyan
+    RGB(255, 255, 255)  // Bright White
+};
 
 // Xterm 256-colour palette (RGB565 format)
 //
@@ -54,10 +57,7 @@ static repeating_timer_t cursor_timer;
 // its native 18-bit RGB using the LSB of green for the LSB of red and blue, and the green
 // component is unmodified.
 
-// The RGB() macro can be used to create colors from this colour depth using 8-bits per
-// channel values.
-
-const uint16_t palette[256] = {
+const uint16_t xterm_palette[256] = {
     // Standard 16 colors (0-15)
     0x0000, 0x8000, 0x0400, 0x8400, 0x0010, 0x8010, 0x0410, 0xC618,
     0x8410, 0xF800, 0x07E0, 0xFFE0, 0x001F, 0xF81F, 0x07FF, 0xFFFF,
@@ -87,346 +87,6 @@ const uint16_t palette[256] = {
     0x8410, 0x9492, 0xA514, 0xB596, 0xC618, 0xD69A, 0xE71C, 0xF79E,
     0x0841, 0x18C3, 0x2945, 0x39C7, 0x4A49, 0x5ACB, 0x6B4D, 0x7BCF};
 
-// Set foreground colour
-static void lcd_set_foreground(uint16_t color)
-{
-    if (reverse)
-    {
-        background = color; // if reverse is enabled, set background to the new foreground color
-    }
-    else
-    {
-        foreground = color;
-    }
-}
-
-// Set background colour
-static void lcd_set_background(uint16_t color)
-{
-    if (reverse)
-    {
-        foreground = color; // if reverse is enabled, set foreground to the new background color
-    }
-    else
-    {
-        background = color;
-    }
-}
-
-static void lcd_set_reverse(bool reverse_on)
-{
-    // swap foreground and background colors if reverse is "reversed"
-    if (reverse && !reverse_on || !reverse && reverse_on)
-    {
-        uint16_t temp = foreground;
-        lcd_set_foreground(background);
-        lcd_set_background(temp);
-    }
-    reverse = reverse_on;
-}
-
-static void lcd_set_underscore(bool underscore_on)
-{
-    // Underscore is not implemented, but we can toggle the state
-    underscore = underscore_on;
-}
-
-static void lcd_set_cursor(bool cursor_on)
-{
-    // Cursor visibility is not implemented, but we can toggle the state
-    cursor_enabled = cursor_on;
-}
-
-static bool lcd_cursor_enabled()
-{
-    // Return the current cursor visibility state
-    return cursor_enabled;
-}
-
-// Reset the LCD display
-static void lcd_reset()
-{
-    // Blip the reset pin to reset the LCD controller
-    gpio_put(LCD_RST, 0);
-    sleep_us(20); // 20µs reset pulse (10µs minimum)
-
-    gpio_put(LCD_RST, 1);
-    sleep_ms(120); // 5ms required after reset, but 120ms needed before sleep out command
-}
-
-static bool lcd_available()
-{
-    // Check if the semaphore is available for LCD access
-    return sem_available(&lcd_sem);
-}
-
-// Protect the SPI bus with a semaphore
-static void lcd_acquire()
-{
-    sem_acquire_blocking(&lcd_sem);
-}
-
-// Release the SPI bus
-static void lcd_release()
-{
-    sem_release(&lcd_sem);
-}
-
-//
-// Low-level SPI functions
-//
-
-// Send a command
-static void lcd_write_cmd(uint8_t cmd)
-{
-    gpio_put(LCD_DCX, 0); // Command
-    gpio_put(LCD_CSX, 0);
-    spi_write_blocking(LCD_SPI, &cmd, 1);
-    gpio_put(LCD_CSX, 1);
-}
-
-// Send 8-bit data (byte)
-static void lcd_write_data(uint8_t len, ...)
-{
-    va_list args;
-    va_start(args, len);
-    gpio_put(LCD_DCX, 1); // Data
-    gpio_put(LCD_CSX, 0);
-    for (uint8_t i = 0; i < len; i++)
-    {
-        uint8_t data = va_arg(args, int); // get the next byte of data
-        spi_write_blocking(LCD_SPI, &data, 1);
-    }
-    gpio_put(LCD_CSX, 1);
-    va_end(args);
-}
-
-// Send 16-bit data (half-word)
-static void lcd_write16_data(uint8_t len, ...)
-{
-    va_list args;
-
-    // DO NOT MOVE THE spi_set_format() OR THE gpio_put(LCD_DCX) CALLS!
-    // They are placed before the gpio_put(LCD_CSX) to ensure that a minimum
-    // chip select high pulse width is achieved (at least 40ns)
-    spi_set_format(LCD_SPI, 16, 0, 0, SPI_MSB_FIRST);
-
-    va_start(args, len);
-    gpio_put(LCD_DCX, 1); // Data
-    gpio_put(LCD_CSX, 0);
-    for (uint8_t i = 0; i < len; i++)
-    {
-        uint16_t data = va_arg(args, int); // get the next half-word of data
-        spi_write16_blocking(LCD_SPI, &data, 1);
-    }
-    gpio_put(LCD_CSX, 1);
-    va_end(args);
-
-    spi_set_format(LCD_SPI, 8, 0, 0, SPI_MSB_FIRST);
-}
-
-// Send a buffer of 16-bit data (half-words)
-static void lcd_write16_buf(const uint16_t *buffer, size_t len)
-{
-    // DO NOT MOVE THE spi_set_format() OR THE gpio_put(LCD_DCX) CALLS!
-    // They are placed before the gpio_put(LCD_CSX) to ensure that a minimum
-    // chip select high pulse width is achieved (at least 40ns)
-    spi_set_format(LCD_SPI, 16, 0, 0, SPI_MSB_FIRST);
-
-    gpio_put(LCD_DCX, 1); // Data
-    gpio_put(LCD_CSX, 0);
-    spi_write16_blocking(LCD_SPI, buffer, len);
-    gpio_put(LCD_CSX, 1);
-
-    spi_set_format(LCD_SPI, 8, 0, 0, SPI_MSB_FIRST);
-}
-
-//
-//  ST7365P LCD controller functions
-//
-
-// Select the target of the pixel data in the display RAM that will follow
-static void lcd_set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
-{
-    // lcd_acquire() and lcd_release() are not needed here, as this function
-    // is only called from lcd_blit() which already acquires the semaphore
-
-    // Set column address (X)
-    lcd_write_cmd(LCD_CMD_CASET);
-    lcd_write_data(4,
-                   UPPER8(x0), LOWER8(x0),
-                   UPPER8(x1), LOWER8(x1));
-
-    // Set row address (Y)
-    lcd_write_cmd(LCD_CMD_RASET);
-    lcd_write_data(4,
-                   UPPER8(y0), LOWER8(y0),
-                   UPPER8(y1), LOWER8(y1));
-
-    // Prepare to write to RAM
-    lcd_write_cmd(LCD_CMD_RAMWR);
-}
-
-//
-//  Send pixel data to the display
-//
-//  All display RAM updates come through this function. This function is responsible for
-//  setting the correct window in the display RAM and writing the pixel data to it. It also
-//  handles the vertical scrolling by adjusting the y-coordinate based on the current scroll
-//  offset (lcd_y_offset).
-//
-//  The pixel data is expected to be in RGB565 format, which is a 16-bit value with the
-//  red component in the upper 5 bits, the green component in the middle 6 bits, and the
-//  blue component in the lower 5 bits.
-
-static void lcd_blit(uint16_t *pixels, uint16_t x, uint16_t y, uint16_t width, uint16_t height)
-{
-    // Adjust y for vertical scroll offset and wrap within memory height
-    uint16_t y_virtual = (y + lcd_y_offset) % FRAME_HEIGHT;
-
-    lcd_acquire();
-    lcd_set_window(x, y_virtual, x + width - 1, y_virtual + height - 1);
-    lcd_write16_buf((uint16_t *)pixels, width * height);
-    lcd_release();
-}
-
-// Draw a solid rectangle on the display
-static void lcd_solid_rectangle(uint16_t color, uint16_t x, uint16_t y, uint16_t width, uint16_t height)
-{
-    static uint16_t pixels[WIDTH];
-
-    for (uint16_t row = 0; row < height; row++)
-    {
-        for (uint16_t i = 0; i < width; i++)
-        {
-            pixels[i] = color;
-        }
-        lcd_blit(pixels, x, y + row, width, 1);
-    }
-}
-
-//
-//  Set the scrolling area of the display
-//
-//  This forum post provides a good explanation of how scrolling on the ST7789P display works:
-//      https://forum.arduino.cc/t/st7735s-scrolling/564506
-//
-//  These functions (lcd_define_scrolling, lcd_scroll_up, and lcd_scroll_down) configure and
-//  set the vertical scrolling area of the display, but it is the responsibility of lcd_blit()
-//  to ensure that the pixel data is written to the correct location in the display RAM.
-//
-
-static void lcd_define_scrolling(uint16_t top_fixed_area, uint16_t bottom_fixed_area)
-{
-    uint16_t scroll_area = HEIGHT - (top_fixed_area + bottom_fixed_area);
-
-    lcd_acquire();
-    lcd_write_cmd(LCD_CMD_VSCRDEF);
-    lcd_write_data(6,
-                   UPPER8(top_fixed_area),
-                   LOWER8(top_fixed_area),
-                   UPPER8(scroll_area),
-                   LOWER8(scroll_area),
-                   UPPER8(bottom_fixed_area),
-                   LOWER8(bottom_fixed_area));
-    lcd_release();
-}
-
-// Scroll the screen up one line (make space at the bottom)
-static void lcd_scroll_up()
-{
-    // The will rotate the content in the scroll area up by one line
-    lcd_y_offset = (lcd_y_offset + GLYPH_HEIGHT) % FRAME_HEIGHT;
-    lcd_acquire();
-    lcd_write_cmd(LCD_CMD_VSCSAD); // Sets where in display RAM the scroll area starts
-    lcd_write_data(2, UPPER8(lcd_y_offset), LOWER8(lcd_y_offset));
-    lcd_release();
-
-    // Clear the new line at the bottom
-    lcd_solid_rectangle(background, 0, HEIGHT - GLYPH_HEIGHT, WIDTH, GLYPH_HEIGHT);
-}
-
-// Scroll the screen down one line (making space at the top)
-static void lcd_scroll_down()
-{
-    // This will rotate the content in the scroll area down by one line
-    lcd_y_offset = (lcd_y_offset - GLYPH_HEIGHT + FRAME_HEIGHT) % FRAME_HEIGHT;
-    lcd_acquire();
-    lcd_write_cmd(LCD_CMD_VSCSAD); // Sets where in display RAM the scroll area starts
-    lcd_write_data(2, UPPER8(lcd_y_offset), LOWER8(lcd_y_offset));
-    lcd_release();
-
-    // Clear the new line at the top
-    lcd_solid_rectangle(background, 0, 0, WIDTH, GLYPH_HEIGHT);
-}
-
-// Clear the entire screen
-static void lcd_clear_screen()
-{
-    lcd_solid_rectangle(background, 0, 0, WIDTH, FRAME_HEIGHT);
-}
-
-// Draw a character at the specified position
-static void lcd_putc(uint8_t x, uint8_t y, uint8_t c)
-{
-    uint8_t *glyph = &font[c * GLYPH_HEIGHT];
-    uint16_t *buffer = char_buffer;
-
-    for (uint8_t i = 0; i < GLYPH_HEIGHT; i++, glyph++)
-    {
-        *(buffer++) = (*glyph & 0x80) ? foreground : background;
-        *(buffer++) = (*glyph & 0x40) ? foreground : background;
-        *(buffer++) = (*glyph & 0x20) ? foreground : background;
-        *(buffer++) = (*glyph & 0x10) ? foreground : background;
-        *(buffer++) = (*glyph & 0x08) ? foreground : background;
-        *(buffer++) = (*glyph & 0x04) ? foreground : background;
-        *(buffer++) = (*glyph & 0x02) ? foreground : background;
-        *(buffer++) = (*glyph & 0x01) ? foreground : background;
-    }
-
-    lcd_blit(char_buffer, x << 3, y * GLYPH_HEIGHT, 8, GLYPH_HEIGHT);
-}
-
-//
-// The cursor
-//
-// A performance cheat: The cursor is drawn as a solid line at the bottom of the
-// character cell. The cursor is positioned here since the printable glyphs
-// do not extend to that row (on purpose). Drawing and erasing the cursor does
-// not corrupt the glyphs.
-//
-// Except for the box drawing glyphs who do extend into that row. Disable the
-// cursor when printing these if you want to see the box drawing glyphs
-// uncorrupted.
-
-// Draw the cursor at the current position
-static void lcd_draw_cursor()
-{
-    lcd_solid_rectangle(foreground, cursor_x << 3, ((cursor_y + 1) * GLYPH_HEIGHT) - 1, 8, 1);
-}
-
-// Erase the cursor at the current position
-static void lcd_erase_cursor()
-{
-    lcd_solid_rectangle(background, cursor_x << 3, ((cursor_y + 1) * GLYPH_HEIGHT) - 1, 8, 1);
-}
-
-// Turn on the LCD display
-static void lcd_display_on()
-{
-    lcd_acquire();
-    lcd_write_cmd(LCD_CMD_DISPON);
-    lcd_release();
-}
-
-// Turn off the LCD display
-static void lcd_display_off()
-{
-    lcd_acquire();
-    lcd_write_cmd(LCD_CMD_DISPOFF);
-    lcd_release();
-}
-
 //
 //  VT100 Terminal Emulation
 //
@@ -439,49 +99,65 @@ static void lcd_display_off()
 //
 
 uint8_t state = STATE_NORMAL; // initial state of escape sequence processing
-uint8_t x = 0;                // cursor x position
-uint8_t y = 0;                // cursor y position
+uint8_t column = 0;           // cursor x position
+uint8_t row = 0;              // cursor y position
 
 uint8_t parameters[16]; // buffer for selective parameters
 uint8_t p_index = 0;    // index into the buffer
 
-uint8_t save_x = 0; // saved cursor x position for DECSC/DECRC
-uint8_t save_y = 0; // saved cursor y position for DECSC/DECRC
+uint8_t save_column = 0; // saved cursor x position for DECSC/DECRC
+uint8_t save_row = 0;    // saved cursor y position for DECSC/DECRC
+uint8_t leds = 0;        // current LED state
 
 uint8_t g0_charset = CHARSET_ASCII; // G0 character set (default ASCII)
 uint8_t g1_charset = CHARSET_ASCII; // G1 character set (default ASCII)
 uint8_t active_charset = 0;         // currently active character set (0=G0, 1=G1)
 
 void (*display_led_callback)(uint8_t) = NULL;
+void (*display_bell_callback)(void) = NULL;
 
-static void display_set_charset(uint8_t charset)
-{
-    active_charset = charset; // Set the active character set
-}
-
-static void display_set_g0_charset(uint8_t charset)
+static void set_g0_charset(uint8_t charset)
 {
     g0_charset = charset;
 }
 
-static void display_set_g1_charset(uint8_t charset)
+static void set_g1_charset(uint8_t charset)
 {
     g1_charset = charset;
 }
 
-static uint8_t display_get_current_charset()
+static void set_charset(uint8_t charset)
+{
+    active_charset = charset; // Set the active character set
+}
+
+static uint8_t get_charset()
 {
     // Return the currently active character set
     return (active_charset == G0_CHARSET) ? g0_charset : g1_charset;
 }
 
-static void display_leds(uint8_t led)
+static void update_leds(uint8_t update)
 {
+    leds = update;
+
     if (display_led_callback)
     {
-        display_led_callback(led); // Call the user-defined LED callback
+        display_led_callback(leds); // Call the user-defined LED callback
     }
 }
+
+static void ring_bell()
+{
+    if (display_bell_callback)
+    {
+        display_bell_callback(); // Call the user-defined bell callback
+    }
+}
+
+//
+// Display API
+//
 
 bool display_emit_available()
 {
@@ -490,10 +166,7 @@ bool display_emit_available()
 
 void display_emit(char ch)
 {
-    if (lcd_cursor_enabled())
-    {
-        lcd_erase_cursor(); // erase the cursor before processing the character
-    }
+    lcd_erase_cursor(); // erase the cursor before processing the character
 
     // State machine for processing incoming characters
     switch (state)
@@ -502,42 +175,44 @@ void display_emit(char ch)
         state = STATE_NORMAL; // reset state by default
         switch (ch)
         {
-        case CHR_CAN:               // cancel the current escape sequence
-        case CHR_SUB:               // same as CAN
-            lcd_putc(x++, y, 0x02); // print a error character
+        case CHR_CAN:                      // cancel the current escape sequence
+        case CHR_SUB:                      // same as CAN
+            lcd_putc(column++, row, 0x02); // print a error character
             break;
         case CHR_ESC:
             state = STATE_ESCAPE; // stay in escape state
             break;
         case '7': // DECSC – Save Cursor
-            save_x = x;
-            save_y = y;
+            save_column = column;
+            save_row = row;
             break;
         case '8': // DECRC – Restore Cursor
-            x = save_x;
-            y = save_y;
+            column = save_column;
+            row = save_row;
             break;
         case 'D': // IND – Index
-            y++;
+            row++;
             break;
         case 'E': // NEL – Next Line
-            x = 0;
-            y++;
+            column = 0;
+            row++;
             break;
         case 'M': // RI – Reverse Index
-            y--;
+            row--;
             break;
         case 'c': // RIS – Reset To Initial State
-            x = y = 0;
+            column = row = 0;
             lcd_set_reverse(false);
             lcd_set_foreground(FOREGROUND);
             lcd_set_background(BACKGROUND);
             lcd_set_underscore(false);
-            lcd_set_cursor(true);
-            display_set_g0_charset(CHARSET_ASCII); // reset character set to ASCII
-            display_set_g1_charset(CHARSET_ASCII);
+            lcd_enable_cursor(true);
+            set_g0_charset(CHARSET_ASCII); // reset character set to ASCII
+            set_g1_charset(CHARSET_ASCII);
             lcd_define_scrolling(0, 0); // no scrolling area defined
             lcd_clear_screen();
+            leds = 0;          // reset LED state
+            update_leds(leds); // reset LEDs
             break;
         case '[': // CSI - Control Sequence Introducer
             p_index = 0;
@@ -584,16 +259,16 @@ void display_emit(char ch)
             switch (ch)
             {
             case 'A': // CUU – Cursor Up
-                y = MAX(0, y - parameters[0]);
+                row = MAX(0, row - parameters[0]);
                 break;
             case 'B': // CUD – Cursor Down
-                y = MIN(y + parameters[0], MAX_ROW);
+                row = MIN(row + parameters[0], MAX_ROW);
                 break;
             case 'C': // CUF – Cursor Forward
-                x = MIN(x + parameters[0], MAX_COL);
+                column = MIN(column + parameters[0], MAX_COL);
                 break;
             case 'D': // CUB - Cursor Backward
-                x = MAX(0, x - parameters[0]);
+                column = MAX(0, column - parameters[0]);
                 break;
             case 'J':               // ED – Erase In Display
                 lcd_clear_screen(); // Only support clearing the entire screen (2)
@@ -612,11 +287,16 @@ void display_emit(char ch)
                     {
                         lcd_set_foreground(BRIGHT);
                     }
-                    else if (parameters[i] == 4) // underscore
+                    else if (parameters[i] == 2) // dim
+                    {
+                        lcd_set_foreground(DIM);
+                    }
+                    // No support for italic (3)
+                    else if (parameters[i] == 4) // underline
                     {
                         lcd_set_underscore(true);
                     }
-                    // No support for blink (5)
+                    // No support for blink (5, 6)
                     else if (parameters[i] == 7) // negative (reverse) image
                     {
                         lcd_set_reverse(true);
@@ -625,69 +305,86 @@ void display_emit(char ch)
                     {
                         lcd_set_foreground(palette[parameters[i] - 30]);
                     }
-                    else if (parameters[i] >= 40 && parameters[i] <= 47) // background colour
-                    {
-                        lcd_set_background(palette[parameters[i] - 40]);
-                    }
-                    else if (parameters[i] >= 90 && parameters[i] <= 97) // bright foreground colour
-                    {
-                        lcd_set_foreground(palette[parameters[i] - 90 + 8]);
-                    }
-                    else if (parameters[i] >= 100 && parameters[i] <= 107) // bright background colour
-                    {
-                        lcd_set_background(palette[parameters[i] - 100 + 8]);
-                    }
-                    // 256-color support: ESC[38;5;Nm (foreground) and ESC[48;5;Nm (background)
-                    else if (parameters[i] == 38 && i + 2 <= p_index && parameters[i + 1] == 5) // foreground 256-color
-                    {
-                        uint8_t color = parameters[i + 2];
-                        if (color < 256)
-                        {
-                            lcd_set_foreground(palette[color]);
-                        }
-                        i += 2; // Skip the next two parameters (5 and color)
-                    }
-                    else if (parameters[i] == 48 && i + 2 <= p_index && parameters[i + 1] == 5) // background 256-color
-                    {
-                        uint8_t color = parameters[i + 2];
-                        if (color < 256)
-                        {
-                            lcd_set_background(palette[color]);
-                        }
-                        i += 2; // Skip the next two parameters (5 and color)
-                    }
-                    // 24-bit truecolor support: ESC[38;2;r;g;b;m (foreground) and ESC[48;2;r;g;b;m (background)
                     else if (parameters[i] == 38 && i + 4 <= p_index && parameters[i + 1] == 2) // foreground truecolor
                     {
                         uint8_t r = parameters[i + 2];
                         uint8_t g = parameters[i + 3];
                         uint8_t b = parameters[i + 4];
-                        uint16_t color = RGB(r, g, b);
-                        lcd_set_foreground(color);
+                        uint16_t colour = RGB(r, g, b);
+                        lcd_set_foreground(colour);
                         i += 4; // Skip the next four parameters (2, r, g, b)
+                    }
+                    else if (parameters[i] == 38 && i + 2 <= p_index && parameters[i + 1] == 5) // foreground 256-colour
+                    {
+                        uint8_t colour = parameters[i + 2];
+                        if (colour < 256)
+                        {
+                            lcd_set_foreground(xterm_palette[colour]);
+                        }
+                        i += 2; // Skip the next two parameters (5 and colour)
+                    }
+                    else if (parameters[i] == 39) // default foreground colour
+                    {
+                        lcd_set_foreground(FOREGROUND);
+                    }
+                    else if (parameters[i] >= 40 && parameters[i] <= 47) // background colour
+                    {
+                        lcd_set_background(palette[parameters[i] - 40]);
                     }
                     else if (parameters[i] == 48 && i + 4 <= p_index && parameters[i + 1] == 2) // background truecolor
                     {
                         uint8_t r = parameters[i + 2];
                         uint8_t g = parameters[i + 3];
                         uint8_t b = parameters[i + 4];
-                        uint16_t color = RGB(r, g, b);
-                        lcd_set_background(color);
+                        uint16_t colour = RGB(r, g, b);
+                        lcd_set_background(colour);
                         i += 4; // Skip the next four parameters (2, r, g, b)
+                    }
+                    else if (parameters[i] == 48 && i + 2 <= p_index && parameters[i + 1] == 5) // background 256-colour
+                    {
+                        uint8_t colour = parameters[i + 2];
+                        if (colour < 256)
+                        {
+                            lcd_set_background(xterm_palette[colour]);
+                        }
+                        i += 2; // Skip the next two parameters (5 and colour)
+                    }
+                    else if (parameters[i] == 49) // default background colour
+                    {
+                        lcd_set_background(BACKGROUND);
+                    }
+                    else if (parameters[i] >= 90 && parameters[i] <= 97) // bright foreground colour
+                    {
+                        lcd_set_foreground(bright_palette[parameters[i] - 90 + 8]);
+                    }
+                    else if (parameters[i] >= 100 && parameters[i] <= 107) // bright background colour
+                    {
+                        lcd_set_background(bright_palette[parameters[i] - 100 + 8]);
                     }
                 }
                 break;
             case 'f': // HVP – Horizontal and Vertical Position
             case 'H': // CUP – Cursor Position
-                y = MIN(parameters[0], MAX_ROW) - 1;
-                x = MIN(parameters[1], MAX_COL) - 1;
+                row = MIN(parameters[0], MAX_ROW) - 1;
+                column = MIN(parameters[1], MAX_COL) - 1;
                 break;
-            case CHR_CAN:               // cancel the current escape sequence
-            case CHR_SUB:               // same as CAN
-                lcd_putc(x++, y, 0x02); // print a error character
+            case CHR_CAN:                      // cancel the current escape sequence
+            case CHR_SUB:                      // same as CAN
+                lcd_putc(column++, row, 0x02); // print a error character
                 break;
             case 'q': // DECLL – Load LEDS (DEC Private)
-                display_leds(parameters[0]); // Set the LEDs based on the first parameter
+                for (uint8_t i = 0; i <= p_index; i++)
+                {
+                    if (parameters[i] == 0) // turn off all LEDs
+                    {
+                        leds = 0; // reset LED state
+                    }
+                    else if (parameters[i] > 0 && parameters[i] <= 8)
+                    {
+                        leds |= (1 << (parameters[i] - 1));
+                    }
+                }
+                update_leds(leds); // update the LEDs
                 break;
             default:
                 break; // ignore unknown sequences
@@ -721,13 +418,13 @@ void display_emit(char ch)
             case 'h':                    // DECSET - DEC Private Mode Set
                 if (parameters[0] == 25) // DECTCEM - Text Cursor Enable Mode
                 {
-                    lcd_set_cursor(true);
+                    lcd_enable_cursor(true);
                 }
                 break;
             case 'l':                    // DECRST - DEC Private Mode Reset
                 if (parameters[0] == 25) // DECTCEM - Text Cursor Enable Mode
                 {
-                    lcd_set_cursor(false);
+                    lcd_enable_cursor(false);
                     lcd_erase_cursor(); // immediately hide cursor
                 }
                 break;
@@ -741,11 +438,14 @@ void display_emit(char ch)
         state = STATE_NORMAL; // return to normal state after processing
         switch (ch)
         {
+        case 'A': // UK character set
+            set_g0_charset(CHARSET_UK);
+            break;
         case 'B': // ASCII character set
-            display_set_g0_charset(CHARSET_ASCII);
+            set_g0_charset(CHARSET_ASCII);
             break;
         case '0': // DEC Special Character Set
-            display_set_g0_charset(CHARSET_DEC);
+            set_g0_charset(CHARSET_DEC);
             break;
         default:
             // Unknown character set, ignore
@@ -757,11 +457,14 @@ void display_emit(char ch)
         state = STATE_NORMAL; // return to normal state after processing
         switch (ch)
         {
+        case 'A': // UK character set
+            set_g1_charset(CHARSET_UK);
+            break;
         case 'B': // ASCII character set
-            display_set_g1_charset(CHARSET_ASCII);
+            set_g1_charset(CHARSET_ASCII);
             break;
         case '0': // DEC Special Character Set
-            display_set_g1_charset(CHARSET_DEC);
+            set_g1_charset(CHARSET_DEC);
             break;
         default:
             // Unknown character set, ignore
@@ -775,27 +478,27 @@ void display_emit(char ch)
         switch (ch)
         {
         case CHR_BS:
-            x = MAX(0, x - 1); // move cursor back one space (but not before the start of the line)
+            column = MAX(0, column - 1); // move cursor back one space (but not before the start of the line)
             break;
         case CHR_BEL:
-            // No action for bell in this implementation
+            ring_bell(); // ring the bell
             break;
         case CHR_HT:
-            x += MIN(((x + 4) & ~3), MAX_COL); // move cursor forward by 1 tabstop (but not beyond the end of the line)
+            column += MIN(((column + 4) & ~3), MAX_COL); // move cursor forward by 1 tabstop (but not beyond the end of the line)
             break;
         case CHR_LF:
         case CHR_VT:
         case CHR_FF:
-            y++; // move cursor down one line
+            row++; // move cursor down one line
             break;
         case CHR_CR:
-            x = 0; // move cursor to the start of the line
+            column = 0; // move cursor to the start of the line
             break;
         case CHR_SO: // Shift Out - select G1 character set
-            display_set_charset(G1_CHARSET);
+            set_charset(G1_CHARSET);
             break;
         case CHR_SI: // Shift In - select G0 character set
-            display_set_charset(G0_CHARSET);
+            set_charset(G0_CHARSET);
             break;
         case CHR_ESC:
             state = STATE_ESCAPE;
@@ -804,13 +507,18 @@ void display_emit(char ch)
             if (ch >= 0x20 && ch < 0x7F) // printable characters
             {
                 // Translate character based on active character set
-                if (display_get_current_charset() == CHARSET_DEC && ch >= 0x5F && ch <= 0x7E)
+                if (get_charset() == CHARSET_UK && ch == '#')
+                {
+                    // Replace '#' with the pound sign in UK character set
+                    ch = 0x1E;
+                }
+                else if (get_charset() == CHARSET_DEC && ch >= 0x5F && ch <= 0x7E)
                 {
                     // Maps characters 0x5F - 0x7E to DEC Special Character Set
                     ch -= 0x5F;
                 }
 
-                lcd_putc(x++, y, ch);
+                lcd_putc(column++, row, ch);
             }
             break;
         }
@@ -818,134 +526,42 @@ void display_emit(char ch)
     }
 
     // Handle wrapping and scrolling
-    if (x > MAX_COL) // wrap around at end of the line
+    if (column > MAX_COL) // wrap around at end of the line
     {
-        x = 0;
-        y++;
+        column = 0;
+        row++;
     }
 
-    if (y < 0) // scroll at top of the screen
+    if (row < 0) // scroll at top of the screen
     {
-        while (y < 0) // scroll until y is non-negative
+        while (row < 0) // scroll until y is non-negative
         {
             lcd_scroll_down(); // scroll down to make space at the top
-            y++;
+            row++;
         }
     }
-    if (y > MAX_ROW) // scroll at bottom of the screen
+    if (row > MAX_ROW) // scroll at bottom of the screen
     {
-        while (y > MAX_ROW) // scroll until y is within bounds
+        while (row > MAX_ROW) // scroll until y is within bounds
         {
             lcd_scroll_up(); // scroll up to make space at the bottom
-            y--;
+            row--;
         }
     }
 
-    cursor_x = x; // update cursor position for drawing
-    cursor_y = y; // update cursor position for drawing
-    if (lcd_cursor_enabled())
-    {
-        lcd_draw_cursor(); // draw the cursor at the new position
-    }
-}
-
-//
-//  Background processing
-//
-//  Handle background tasks such as blinking the cursor
-//
-
-// Blink the cursor at regular intervals
-bool on_cursor_timer(repeating_timer_t *rt)
-{
-    static bool cursor_visible = false;
-
-    if (!lcd_available() || !lcd_cursor_enabled())
-    {
-        return true; // if the SPI bus is not available or cursor is disabled, do not toggle cursor
-    }
-
-    if (cursor_visible)
-    {
-        lcd_erase_cursor();
-    }
-    else
-    {
-        lcd_draw_cursor();
-    }
-
-    cursor_visible = !cursor_visible; // Toggle cursor visibility
-    return true;                      // Keep the timer running
+    // Update cursor position
+    lcd_move_cursor(column, row);
+    lcd_draw_cursor(); // draw the cursor at the new position
 }
 
 //
 //  Display Initialization
 //
 
-void display_init(led_callback_t led_callback)
+void display_init(led_callback_t led_callback, bell_callback_t bell_callback)
 {
-    display_led_callback = led_callback; // Set the LED callback function
+    display_led_callback = led_callback;   // Set the LED callback function
+    display_bell_callback = bell_callback; // Set the bell callback function
 
-    // initialise GPIO
-    gpio_init(LCD_SCL);
-    gpio_init(LCD_SDI);
-    gpio_init(LCD_SDO);
-    gpio_init(LCD_CSX);
-    gpio_init(LCD_DCX);
-    gpio_init(LCD_RST);
-
-    gpio_set_dir(LCD_SCL, GPIO_OUT);
-    gpio_set_dir(LCD_SDI, GPIO_OUT);
-    gpio_set_dir(LCD_CSX, GPIO_OUT);
-    gpio_set_dir(LCD_DCX, GPIO_OUT);
-    gpio_set_dir(LCD_RST, GPIO_OUT);
-
-    // initialise 4-wire SPI
-    spi_init(LCD_SPI, LCD_BAUDRATE);
-    gpio_set_function(LCD_SCL, GPIO_FUNC_SPI);
-    gpio_set_function(LCD_SDI, GPIO_FUNC_SPI);
-    gpio_set_function(LCD_SDO, GPIO_FUNC_SPI);
-
-    gpio_put(LCD_CSX, 1);
-    gpio_put(LCD_RST, 1);
-
-    lcd_reset(); // reset the LCD controller
-
-    lcd_write_cmd(LCD_CMD_SWRESET); // reset the commands and parameters to their S/W Reset default values
-    sleep_ms(10);                   // required to wait at least 5ms
-
-    lcd_write_cmd(LCD_CMD_COLMOD); // pixel format set
-    lcd_write_data(1, 0x55);       // 16 bit/pixel (RGB565)
-
-    lcd_write_cmd(LCD_CMD_MADCTL); // memory access control
-    lcd_write_data(1, 0x48);       // BGR colour filter panel, top to bottom, left to right
-
-    lcd_write_cmd(LCD_CMD_INVON); // display inversion on
-
-    lcd_write_cmd(LCD_CMD_EMS); // entry mode set
-    lcd_write_data(1, 0xC6);    // normal display, 16-bit (RGB) to 18-bit (rgb) color
-                                //   conversion: r(0) = b(0) = G(0)
-
-    lcd_write_cmd(LCD_CMD_VSCRDEF); // vertical scroll definition
-    lcd_write_data(6,
-                   0x00, 0x00, // top fixed area of 0 pixels
-                   0x01, 0x40, // scroll area height of 320 pixels
-                   0x00, 0x00  // bottom fixed area of 0 pixels
-    );
-
-    lcd_write_cmd(LCD_CMD_SLPOUT); // sleep out
-    sleep_ms(10);                  // required to wait at least 5ms
-
-    // Prevent the blinking cursor from interfering with other operations
-    sem_init(&lcd_sem, 1, 1);
-
-    // Clear the screen
-    lcd_clear_screen();
-
-    // Now that the display is initialized, display RAM garbage is cleared,
-    // turn on the display
-    lcd_display_on();
-
-    // Blink the cursor every second (500 ms on, 500 ms off)
-    add_repeating_timer_ms(500, on_cursor_timer, NULL, &cursor_timer);
+    lcd_init();
 }

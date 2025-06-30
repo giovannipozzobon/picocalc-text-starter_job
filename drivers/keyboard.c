@@ -126,14 +126,9 @@ static bool on_keyboard_timer(repeating_timer_t *rt)
     return true; // continue the timer
 }
 
-void keyboard_init(keyboard_key_available_callback_t key_available_callback)
-{
-    // Store the callback function for later use
-    keyboard_key_available_callback = key_available_callback;
-
-    // poll every 200 ms for key events
-    add_repeating_timer_ms(100, on_keyboard_timer, NULL, &key_timer);
-}
+//
+// Keyboard API
+//
 
 bool keyboard_key_available()
 {
@@ -150,4 +145,15 @@ char keyboard_get_key()
     char ch = rx_buffer[rx_tail];
     rx_tail = (rx_tail + 1) & (KBD_BUFFER_SIZE - 1);
     return ch;
+}
+
+void keyboard_init(keyboard_key_available_callback_t key_available_callback)
+{
+    // Store the callback function for later use
+    keyboard_key_available_callback = key_available_callback;
+
+    sb_init(); // Initialize the south bridge
+
+    // poll every 200 ms for key events
+    add_repeating_timer_ms(100, on_keyboard_timer, NULL, &key_timer);
 }

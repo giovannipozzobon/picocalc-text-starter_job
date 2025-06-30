@@ -32,5 +32,5 @@ void sb_write(const uint8_t *src, size_t len);
 void sb_read(uint8_t *dst, size_t len);
 void sb_init();
 
-uint16_t sb_read_keyboard();
-uint8_t sb_read_battery();
+uint16_t sb_read_keyboard(void);
+uint8_t sb_read_battery(void);
