@@ -16,6 +16,8 @@ This starter provides source code for accessing the peripherals of the PicoCalc 
 
 This pseudo driver configures the southbridge, display and keyboard drivers. The display and keyboard are connected to the  C stdio <stdio.h> library (printf, scanf, getchar, putchar, ...).
 
+### picocalc_init
+
 `void picocalc_init(led_callback_t led_callback)`
 
 Initialise the southbridge, display and keyboard. Connects the C stdio functions to the display and keyboard.
@@ -50,7 +52,8 @@ The font (8x10) is easily modifyable in source with out any additional tooling. 
     0b00000000,
     0b00000000,
 ```
-### API
+
+### display_init
 
 `void display_init(led_callback_t led_callback, bell_callback_t bell_callback)`
 
@@ -61,11 +64,13 @@ Initialises the LCD display.
 led_callback – called when the state of the LEDs changes
 bell_callback – called when the BEL character is received
 
+### display_emit_available
 
 `bool display_emit_available(void)`
 
 Returns true if the display can accept characters.
 
+### display_emit
 
 `void display_emit(char c)`
 
@@ -87,7 +92,8 @@ The purpose of this implementation was support:
 
 The type ahead buffer allows users to type even while your project is processing. When Brk (Shift-Esc) is pressed, a flag is set allowing your project to monitor and stop processing, if desired. 
 
-### API
+
+### keyboard_init
 
 `void keyboard_init(keyboard_key_available_callback_t key_available_callback)`
 
@@ -98,13 +104,20 @@ Initialises the keyboard.
 key_available_callback - called when keys are available
 
 
+### keyboard_key_available
+
 `bool keyboard_key_available(void)`
 
 Returns true is a key is available.
 
+
+### keyboard_get_key
+
 `char keyboard_get_key(void)`
 
 Returns a key; blocks if no key is available.
+
+
 
 # Low-Level Drivers
 
@@ -114,22 +127,28 @@ The driver for the LCD display is optimised for displaying text. For performance
 
 This driver uses very little RAM leaving more for your project as a frame buffer in the Pico RAM is not used.
 
-### API
+### lcd_init
 
 `void lcd_init(void)`
 
 Initialise the LCD controller.
 
 
+### lcd_display_on
+
 `void lcd_display_on(void)`
 
 Turn the display on.
 
 
+### lcd_display_off
+
 `void lcd_display_off(void)`
 
 Turn the display off.
 
+
+### lcd_blit
 
 `void lcd_blit(uint16_t *pixels, uint16_t x, uint16_t y, uint16_t width, uint16_t height)`
 
@@ -142,6 +161,9 @@ Writes pixel data to a region of the frame buffer in the display controller and 
 - y – top edge of the region in pixels
 - width – width of the region in pixels
 - height - height of the region in pixels
+
+
+### lcd_solid_rectangle
 
 `void lcd_solid_rectangle(uint16_t colour, uint16_t x, uint16_t y, uint16_t width, uint16_t height)`
 
@@ -156,6 +178,8 @@ Draws a solid rectangle using a single colour.
 - height - height of the rectangle in pixels
 
 
+### lcd_define_scrolling
+
 `void lcd_define_scrolling(uint16_t top_fixed_area, uint16_t bottom_fixed_area)`
 
 Define the area that will be scrolled on the display. The scrollable area is between the top fixed area and the bottom fixed area.
@@ -166,20 +190,28 @@ Define the area that will be scrolled on the display. The scrollable area is bet
 - bottom_fixed_area – Number of pixel rows fixed at the bottom of the display
 
 
+### lcd_scroll_up
+
 `void lcd_scroll_up(void)`
 
 Scroll the screen up one line adding room for a line of text at the bottom of the scrollable area.
 
+
+### lcd_scroll_down
 
 `void lcd_scroll_down(void)`
 
 Scroll the screen down one line adding room for a line of text at the top of the scrollable area.
 
 
+### lcd_clear_screen
+
 `void lcd_clear_screen(void)`
 
 Clear the display.
 
+
+### lcd_putc
 
 `void lcd_putc(uint8_t column, uint8_t row, uint8_t c)`
 
@@ -192,6 +224,8 @@ Draws a glyph at a location on the display.
 - c – glygh to draw (font offset)
 
 
+### lcd_move_cursor
+
 `void lcd_move_cursor(uint8_t column, uint8_t row)`
 
 Move to cursor to a location.
@@ -201,35 +235,48 @@ Move to cursor to a location.
 - column - horizontal location to draw
 - row – vertical location to draw
 
+
+### lcd_draw_cursor
+
 `void lcd_draw_cursor(void)`
 
 Draws the cursor, if enabled.
 
+
+### lcd_erase_cursor
 
 `void lcd_erase_cursor(void)`
 
 Erases the cursor, if enabled.
 
 
+### lcd_enable_cursor
+
 `void lcd_enable_cursor(bool cursor_on)`
 
 Enable or disable the cursor.
 
 
+### lcd_cursor_enabled
+
 `bool lcd_cursor_enabled(void)`
 
 Determine if the cursor is enabled.
+
+
 
 ## Onboard LED
 
 Controlls the on-board LED taking in to account the difference with the WiFi enabled Pico.
 
-### API
+### led_init
 
 `int led_init(void)`
 
 Initialises the on-board led and returns 0 if no error, or an error code.
 
+
+### led_set
 
 `void led_set(bool on)`
 
@@ -240,16 +287,19 @@ Lights or unlights the on-board LED.
 - on - true to light the LED
 
 
+
 ## Southbridge
 
 The southbridge is the MPU on the mainboard of the PicoCalc. This MPU interfaces the low-speed devices to the Pico.
 
-### API
+### sb_read_keyboard
 
 `uint16_t sb_read_keyboard(void)`
 
 Read a key status and code from the keyboard as a 16-bit half-word. The upper byte is the key status, the lower byte is the key code. 
 
+
+### sb_read_battery
 
 `uint8_t sb_read_battery(void)`
 
@@ -270,7 +320,7 @@ The main function implements a simple REPL to demonstrate different cababilities
 
 ## Speed Test Notes
 
-The speed test is written to attempt to provide real-world metrics. The scrolling test is scrolling full lines of text using printf() to display the row number and changing the colour of each line.
+The speed test is a fun excercise that allows one is determine what to expect when using the display driver for your project. The scrolling test is scrolling full lines of text using printf() to display the row number and changing the colour of each line.
 
 Likewise, the characters per second test is positioning the cursor, changing the colour and displaying the character.
 
