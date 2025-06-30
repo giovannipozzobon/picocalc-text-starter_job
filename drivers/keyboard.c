@@ -137,9 +137,9 @@ bool keyboard_key_available()
 
 char keyboard_get_key()
 {
-    if (!keyboard_key_available())
+    while (!keyboard_key_available())
     {
-        return -1; // No key available
+        tight_loop_contents();
     }
 
     char ch = rx_buffer[rx_tail];

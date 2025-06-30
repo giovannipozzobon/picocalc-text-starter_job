@@ -4,6 +4,12 @@ With this starter project, you will be able to get started on the PicoCalc using
 
 This starter contains code to write text to the LCD display and read input from the keyboard using the C stdio <stdio.h> library (printf, scanf, getchar, putchar, ...).
 
+Other drivers are provided for:
+
+- Onboard LED
+- Serial port
+- Southbridge functions (battery, backlights)
+
 *This starter is not intended for getting started with only a Raspberry Pi Pico as you should already have, or will need to gain, knowledge with the Pico-series C/C++ SDK to use this starter project.*
 
 This starter provides source code for accessing the peripherals of the PicoCalc device so you can concentrate on creating your project.
@@ -288,6 +294,56 @@ Lights or unlights the on-board LED.
 
 
 
+## Serial
+
+The serial port is available throught the USB C port at the top of the PicoCalc or through the header on the left-side.
+
+### serial_init
+
+`void serial_init(uint baudrate, uint databits, uint stopbits, uart_parity_t parity)`
+
+Initial the serial port.
+
+#### Parameters
+
+- baudrate – Baudrate of UART in Hz
+- databits – Number of bits of data, 5 through 8
+- stopbits – Number of stop bits, 1 or 2
+- parity – one of UART_PARITY_NONE, UART_PARITY_EVEN, UART_PARITY_ODD
+
+
+### serial_char_available
+
+`bool serial_input_available(void)`
+
+Returns true if a serial character is available.
+
+
+### serial_get_char
+
+`char serial_get_char(void)`
+
+Returns the next character from the serial input buffer; blocks if input is not available.
+
+
+### serial_output_available
+
+`bool serial_output_available(void)`
+
+Returns true is a character can be emitted.
+
+
+### serial_put_char
+
+`void serial_put_char(char ch)`
+
+Emits a character through the serial port.
+
+#### Parameters
+
+- ch - the character to emit
+
+
 ## Southbridge
 
 The southbridge is the MPU (STM32F103R8T6) on the mainboard of the PicoCalc. This MPU interfaces the low-speed devices to the Pico.
@@ -346,6 +402,7 @@ Sets the keyboard backlight brightness.
 
 The main function implements a simple REPL to demonstrate different cababilities of this starter project:
 
+- **backlight** - Displays the backlight values for the display and keyboard
 - **battery** – Displays the battery level and status (graphically)
 - **box** – Draws a yellow box using special graphics characters
 - **bye** – Reboots the device into BOOTSEL mode
