@@ -19,6 +19,9 @@ void list_songs(void);
 extern const audio_note_t song_mary_lamb[];
 extern const audio_note_t song_happy_birthday[];
 extern const audio_note_t song_twinkle[];
+extern const audio_note_t song_baa_baa[];
+extern const audio_note_t song_old_macdonald[];
+extern const audio_note_t song_itsy_bitsy_spider[];
 
 // Song list
 extern const song_info_t song_list[];

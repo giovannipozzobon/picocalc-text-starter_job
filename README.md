@@ -6,6 +6,7 @@ This starter contains code to write text to the LCD display and read input from 
 
 Other drivers are provided for:
 
+- Audio
 - Onboard LED
 - Serial port
 - Southbridge functions (battery, backlights)
@@ -464,11 +465,15 @@ Sets the keyboard backlight brightness.
 
 The main function implements a simple REPL to demonstrate different cababilities of this starter project:
 
+- **audiotest** – Test the audio driver with different tones
 - **backlight** - Displays the backlight values for the display and keyboard
 - **battery** – Displays the battery level and status (graphically)
+- **beep** – Play a simple beep sound
 - **box** – Draws a yellow box using special graphics characters
 - **bye** – Reboots the device into BOOTSEL mode
-- **clear** – Clears the display
+- **cls** – Clears the display
+- **play** – Play a named song (use 'songs' for a list of available songs)
+- **songs** – List all available songs
 - **speedtest** – Display driver speed test
 - **help** – Lists the available commands
 

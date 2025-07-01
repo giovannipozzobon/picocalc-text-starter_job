@@ -399,7 +399,7 @@ void songs()
     printf("PicoCalc Song Library\n");
     list_songs();
     printf("\nUsage: song <name>\n");
-    printf("Example: song popcorn\n");
+    printf("Example: song mary\n");
     printf("\nPress BREAK key during playback to stop a song.\n");
 }
 

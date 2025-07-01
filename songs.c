@@ -69,11 +69,104 @@ const audio_note_t song_twinkle[] = {
     {TONE_SILENCE, 0}
 };
 
+// "Baa Baa Black Sheep" - Traditional nursery rhyme
+const audio_note_t song_baa_baa[] = {
+    // "Baa baa black sheep, have you any wool?"
+    {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER},
+    {TONE_A4, NOTE_QUARTER}, {TONE_A4, NOTE_QUARTER}, {TONE_G4, NOTE_HALF},
+    
+    // "Yes sir, yes sir, three bags full"
+    {TONE_F4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER},
+    {TONE_D4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_HALF},
+    
+    // "One for the master, one for the dame"
+    {TONE_G4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER},
+    {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_HALF},
+    
+    // "And one for the little boy who lives down the lane"
+    {TONE_G4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER},
+    {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_HALF},
+    
+    // "Baa baa black sheep, have you any wool?" (repeat)
+    {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER},
+    {TONE_A4, NOTE_QUARTER}, {TONE_A4, NOTE_QUARTER}, {TONE_G4, NOTE_HALF},
+    
+    // "Yes sir, yes sir, three bags full" (repeat)
+    {TONE_F4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER},
+    {TONE_D4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_HALF},
+    
+    // End marker
+    {TONE_SILENCE, 0}
+};
+
+// "Old MacDonald Had a Farm" - Popular children's song
+const audio_note_t song_old_macdonald[] = {
+    // "Old MacDonald had a farm, E-I-E-I-O"
+    {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_G3, NOTE_QUARTER},
+    {TONE_A3, NOTE_QUARTER}, {TONE_A3, NOTE_QUARTER}, {TONE_G3, NOTE_HALF},
+    {TONE_G3, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER},
+    {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_HALF},
+    
+    // "And on his farm he had a cow, E-I-E-I-O"
+    {TONE_G3, NOTE_QUARTER}, {TONE_G3, NOTE_QUARTER}, {TONE_G3, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER},
+    {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_HALF},
+    {TONE_G3, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER},
+    {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_HALF},
+    
+    // "With a moo-moo here, and a moo-moo there"
+    {TONE_C4, NOTE_EIGHTH}, {TONE_G3, NOTE_EIGHTH}, {TONE_C4, NOTE_EIGHTH}, {TONE_G3, NOTE_EIGHTH},
+    {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_EIGHTH}, {TONE_G3, NOTE_EIGHTH}, {TONE_C4, NOTE_EIGHTH}, {TONE_G3, NOTE_EIGHTH},
+    {TONE_C4, NOTE_QUARTER},
+    
+    // "Here a moo, there a moo, everywhere a moo-moo"
+    {TONE_C4, NOTE_EIGHTH}, {TONE_G3, NOTE_EIGHTH}, {TONE_C4, NOTE_QUARTER},
+    {TONE_C4, NOTE_EIGHTH}, {TONE_G3, NOTE_EIGHTH}, {TONE_C4, NOTE_QUARTER},
+    {TONE_G3, NOTE_QUARTER}, {TONE_C4, NOTE_EIGHTH}, {TONE_G3, NOTE_EIGHTH}, {TONE_C4, NOTE_QUARTER},
+    
+    // "Old MacDonald had a farm, E-I-E-I-O"
+    {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_G3, NOTE_QUARTER},
+    {TONE_A3, NOTE_QUARTER}, {TONE_A3, NOTE_QUARTER}, {TONE_G3, NOTE_HALF},
+    {TONE_G3, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER},
+    {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_WHOLE},
+    
+    // End marker
+    {TONE_SILENCE, 0}
+};
+
+// "Itsy Bitsy Spider" - Classic children's nursery rhyme
+const audio_note_t song_itsy_bitsy_spider[] = {
+    // "The itsy bitsy spider climbed up the water spout"
+    {TONE_G4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER},
+    {TONE_D4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER},
+    {TONE_C4, NOTE_HALF}, {TONE_SILENCE, NOTE_QUARTER},
+    
+    // "Down came the rain and washed the spider out"
+    {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER},
+    {TONE_D4, NOTE_QUARTER}, {TONE_G3, NOTE_QUARTER}, {TONE_G3, NOTE_QUARTER}, {TONE_G3, NOTE_QUARTER},
+    {TONE_C4, NOTE_HALF}, {TONE_SILENCE, NOTE_QUARTER},
+    
+    // "Out came the sun and dried up all the rain"
+    {TONE_G4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER},
+    {TONE_D4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER},
+    {TONE_D4, NOTE_HALF}, {TONE_SILENCE, NOTE_QUARTER},
+    
+    // "And the itsy bitsy spider climbed up the spout again"
+    {TONE_G4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER},
+    {TONE_D4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER},
+    {TONE_C4, NOTE_QUARTER}, {TONE_G3, NOTE_QUARTER}, {TONE_C4, NOTE_WHOLE},
+    
+    // End marker
+    {TONE_SILENCE, 0}
+};
+
 // Song table for easy access
 const song_info_t song_list[] = {
     {"mary", song_mary_lamb, "Mary Had a Little Lamb"},
     {"birthday", song_happy_birthday, "Happy Birthday"},
     {"twinkle", song_twinkle, "Twinkle Twinkle Little Star"},
+    {"baa", song_baa_baa, "Baa Baa Black Sheep"},
+    {"macdonald", song_old_macdonald, "Old MacDonald Had a Farm"},
+    {"spider", song_itsy_bitsy_spider, "Itsy Bitsy Spider"},
     {NULL, NULL, NULL} // End marker
 };
 
