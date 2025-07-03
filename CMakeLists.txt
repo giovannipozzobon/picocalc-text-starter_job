@@ -42,6 +42,8 @@ add_executable(picocalc-text-starter
         commands.h
         songs.c
         songs.h
+        tests.c
+        tests.h
         drivers/audio.c
         drivers/audio.h
         drivers/display.c
@@ -62,6 +64,9 @@ add_executable(picocalc-text-starter
 
 pico_set_program_name(picocalc-text-starter "picocalc-text-starter")
 pico_set_program_version(picocalc-text-starter "0.1")
+
+# Generate PIO header
+pico_generate_pio_header(picocalc-text-starter ${CMAKE_CURRENT_LIST_DIR}/drivers/audio.pio)
 
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_uart(picocalc-text-starter 0)
@@ -84,7 +89,7 @@ target_link_libraries(picocalc-text-starter
         hardware_gpio
         hardware_i2c
         hardware_spi
-        hardware_pwm
+        hardware_pio
         hardware_clocks
         )
 

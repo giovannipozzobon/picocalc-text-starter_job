@@ -1,19 +1,19 @@
 # picocalc-text-starter
 
-With this starter project, you will be able to get started on the PicoCalc using the Pico-Series C/C++ SDK. You can create the [text-based user interface](https://en.wikipedia.org/wiki/Text-based_user_interface) experience of the 1980's that are well suited for a mouseless system.
+With this starter project, you will be able to get started on the [PicoCalc](https://www.clockworkpi.com/picocalc) using the [Pico-Series C/C++ SDK](https://www.raspberrypi.com/documentation/microcontrollers/c_sdk.html). You can create the [text-based user interface](https://en.wikipedia.org/wiki/Text-based_user_interface) experience of the 1980's that are well suited for a mouseless system.
 
-This starter contains code to write text to the LCD display and read input from the keyboard using the C stdio <stdio.h> library (printf, scanf, getchar, putchar, ...).
+This starter contains code to write **text** to the LCD display and read input from the keyboard using the C stdio <stdio.h> library (printf, scanf, getchar, putchar, ...). This starter is not designed, nor intended, to create graphical or sprite-based games. Hopefully, other starters are available that can help you, though you could easily create text-based games.
 
-Other drivers are provided for:
+This starter includes drivers for:
 
-- Audio
-- Onboard LED
+- Audio (stereo)
+- Display (multicolour text with ANSI escape code emulation)
+- Keyboard
+- Pico onboard LED (WIFI-option aware)
 - Serial port
 - Southbridge functions (battery, backlights)
 
-*This starter is not intended for getting started with only a Raspberry Pi Pico as you should already have, or will need to gain, knowledge with the Pico-series C/C++ SDK to use this starter project.*
-
-This starter provides source code for accessing the peripherals of the PicoCalc device so you can concentrate on creating your project.
+*This starter is not intended for getting started with only a Raspberry Pi Pico as you should already have, or will need to gain, knowledge with the Pico-series C/C++ SDK. Also, this starter does not contain the best-of-bread drivers for each component, but rather enough capability to get your project "started" fast. For instance, you will not be able to create a stunning music synthesizer using the included audio driver.*
 
 > This is a starter project. Feel free to take bits and pieces and modify what is here to suit YOUR project.
 
@@ -130,9 +130,7 @@ Returns a key; blocks if no key is available.
 
 ## Audio
 
-This simple audio driver can play single channel notes using a PWM.
-
-The PicoCalc is configured with a limitation that prevents a simple PWM-based driver that can create stereo sound. This driver is limited to mono output.
+This simple audio driver can play stereo notes using the PIO, a maximum of one note per channel. Very little memory is used.
 
 
 ### audio_init
@@ -142,27 +140,47 @@ The PicoCalc is configured with a limitation that prevents a simple PWM-based dr
 Initialises the audio driver.
 
 
-### audio_play_tone
+### audio_play_sound_blocking
 
-`void audio_play_tone(uint16_t frequency, uint32_t duration_ms)`
+`void audio_play_tone_blocking(uint32_t left_frequency, uint32_t right_frequency, uint32_t duration_ms)`
 
-Plays a tone for a duration.
-
-#### Paramters
-
-- frequency - frequency of the tone in Hz
-- duration_ms – duration of the tone in milliseconds
-
-
-### audio_play_tone_async
-
-`void audio_play_tone_async(uint16_t frequency)`
-
-Plays a tone until stopped.
+Plays a note on each channel for a duration. A frequency of zero represents silence.
 
 #### Parameters
 
-- frequency - frequency of the tone in Hz
+- left_frequency - frequency of the note in Hz
+- right_frequency - frequency of the note in Hz
+- duration_ms – duration of the tone in milliseconds
+
+
+### audio_play_sound
+
+`void audio_play_sound(uint32_t left_frequency, uint32_t right_frequency)`
+
+Plays a note on each channel until stopped. A frequency of zero represents silence.
+
+#### Parameters
+
+- left_frequency - frequency of the note in Hz
+- right_frequency - frequency of the note in Hz
+
+
+### audio_play_note_blocking
+
+`void audio_play_note_blocking(const audio_note_t *note)`
+
+Plays an note, defined by `audio_note_t`.
+
+#### Parameters
+
+- note – note to play
+
+
+### audio_play_song_blocking
+
+`void audio_play_song_blocking(const audio_song_t *song)`
+
+Plays a song (blocking), defined by 'audio_song_t'.
 
 
 ### audio_stop
@@ -171,16 +189,9 @@ Plays a tone until stopped.
 
 Stops a tone that is playing asynchronously.
 
-
-### audio_set_volume
-
-`void audio_set_volume(uint8_t volume)`
-
-Adjusts the volume.
-
 #### Parameters
 
-- volume – 0 quiet to 100 loud
+- song – song to play
 
 
 ### audio_is_playing
@@ -461,11 +472,10 @@ Sets the keyboard backlight brightness.
 
 
 
-# Examples
+# Commands
 
 The main function implements a simple REPL to demonstrate different cababilities of this starter project:
 
-- **audiotest** – Test the audio driver with different tones
 - **backlight** - Displays the backlight values for the display and keyboard
 - **battery** – Displays the battery level and status (graphically)
 - **beep** – Play a simple beep sound
@@ -474,13 +484,30 @@ The main function implements a simple REPL to demonstrate different cababilities
 - **cls** – Clears the display
 - **play** – Play a named song (use 'songs' for a list of available songs)
 - **songs** – List all available songs
-- **speedtest** – Display driver speed test
+- **test** – Run a named test (use 'tests' for a list of available tests)
+- **tests** – List all available tests
 - **help** – Lists the available commands
 
+# Songs
 
-## Speed Test Notes
+A fun song library is provided to give additional testing the audio driver and hardware.
 
-The speed test is a fun excercise that allows one is determine what to expect when using the display driver for your project. The scrolling test is scrolling full lines of text using printf() to display the row number and changing the colour of each line.
+- **baa** – Baa Baa Black Sheep
+- **birthday** – Happy Birthday
+- **canon** – Canon in D
+- **elise** – Fur Elise
+- **macdonald** – Old MacDonald Had a Farm
+- **mary** – Mary Had a Little Lamb
+- **moonlight** – Moonlight Sonata
+- **ode** – Ode to Joy (Beethoven)
+- **spider** – Itsy Bitsy Spider
+- **twinkle** – Twinkle Twinkle Little Star
 
-Likewise, the characters per second test is positioning the cursor, changing the colour and displaying the character.
+# Tests
+
+Tests to make sure the hardware and drivers are working correctly.
+
+- **audio** – Test the audio driver with different notes, distinct left/right separation, melodies bouncing between channels, and harmonious intervals. 
+- **display** – Display driver stress test with scrolling lines of different colours, writing ANSI escape codes and characters as quickly as possible.
+
 

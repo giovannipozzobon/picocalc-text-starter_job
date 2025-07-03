@@ -11,73 +11,73 @@
 #define AUDIO_RIGHT_PIN (27)
 
 
-// TONES and their frequencies (in Hz)
+// Pitch and their frequencies (in Hz)
 
 // Octave 3 (Low notes)
-#define TONE_C3  (131)
-#define TONE_CS3 (139)
-#define TONE_D3  (147)
-#define TONE_DS3 (156)
-#define TONE_E3  (165)
-#define TONE_F3  (175)
-#define TONE_FS3 (185)
-#define TONE_G3  (196)
-#define TONE_GS3 (208)
-#define TONE_A3  (220)
-#define TONE_AS3 (233)
-#define TONE_B3  (247)
+#define PITCH_C3  (131)
+#define PITCH_CS3 (139)
+#define PITCH_D3  (147)
+#define PITCH_DS3 (156)
+#define PITCH_E3  (165)
+#define PITCH_F3  (175)
+#define PITCH_FS3 (185)
+#define PITCH_G3  (196)
+#define PITCH_GS3 (208)
+#define PITCH_A3  (220)
+#define PITCH_AS3 (233)
+#define PITCH_B3  (247)
 
 // Octave 4 (Middle notes)
-#define TONE_C4  (262)
-#define TONE_CS4 (277)
-#define TONE_D4  (294)
-#define TONE_DS4 (311)
-#define TONE_E4  (330)
-#define TONE_F4  (349)
-#define TONE_FS4 (370)
-#define TONE_G4  (392)
-#define TONE_GS4 (415)
-#define TONE_A4  (440)  // A440 - Concert pitch
-#define TONE_AS4 (466)
-#define TONE_B4  (494)
+#define PITCH_C4  (262)
+#define PITCH_CS4 (277)
+#define PITCH_D4  (294)
+#define PITCH_DS4 (311)
+#define PITCH_E4  (330)
+#define PITCH_F4  (349)
+#define PITCH_FS4 (370)
+#define PITCH_G4  (392)
+#define PITCH_GS4 (415)
+#define PITCH_A4  (440)  // A440 - Concert pitch
+#define PITCH_AS4 (466)
+#define PITCH_B4  (494)
 
 // Octave 5 (High notes)
-#define TONE_C5  (523)
-#define TONE_CS5 (554)
-#define TONE_D5  (587)
-#define TONE_DS5 (622)
-#define TONE_E5  (659)
-#define TONE_F5  (698)
-#define TONE_FS5 (740)
-#define TONE_G5  (784)
-#define TONE_GS5 (831)
-#define TONE_A5  (880)
-#define TONE_AS5 (932)
-#define TONE_B5  (988)
+#define PITCH_C5  (523)
+#define PITCH_CS5 (554)
+#define PITCH_D5  (587)
+#define PITCH_DS5 (622)
+#define PITCH_E5  (659)
+#define PITCH_F5  (698)
+#define PITCH_FS5 (740)
+#define PITCH_G5  (784)
+#define PITCH_GS5 (831)
+#define PITCH_A5  (880)
+#define PITCH_AS5 (932)
+#define PITCH_B5  (988)
 
 // Octave 6 (Very high notes)
-#define TONE_C6  (1047)
-#define TONE_CS6 (1109)
-#define TONE_D6  (1175)
-#define TONE_DS6 (1245)
-#define TONE_E6  (1319)
-#define TONE_F6  (1397)
-#define TONE_FS6 (1480)
-#define TONE_G6  (1568)
-#define TONE_GS6 (1661)
-#define TONE_A6  (1760)
-#define TONE_AS6 (1865)
-#define TONE_B6  (1976)
+#define PITCH_C6  (1047)
+#define PITCH_CS6 (1109)
+#define PITCH_D6  (1175)
+#define PITCH_DS6 (1245)
+#define PITCH_E6  (1319)
+#define PITCH_F6  (1397)
+#define PITCH_FS6 (1480)
+#define PITCH_G6  (1568)
+#define PITCH_GS6 (1661)
+#define PITCH_A6  (1760)
+#define PITCH_AS6 (1865)
+#define PITCH_B6  (1976)
 
-// Special tones
-#define TONE_SILENCE (0)
-#define TONE_LOW_BEEP (100)
-#define TONE_HIGH_BEEP (2000)
+// Special pitches
+#define SILENCE (0)
+#define LOW_BEEP (100)
+#define HIGH_BEEP (2000)
 
 // Common chord frequencies (for convenience)
-#define CHORD_C_MAJOR TONE_C4, TONE_E4, TONE_G4
-#define CHORD_G_MAJOR TONE_G4, TONE_B4, TONE_D5
-#define CHORD_F_MAJOR TONE_F4, TONE_A4, TONE_C5
+#define CHORD_C_MAJOR PITCH_C4, PITCH_E4, PITCH_G4
+#define CHORD_G_MAJOR PITCH_G4, PITCH_B4, PITCH_D5
+#define CHORD_F_MAJOR PITCH_F4, PITCH_A4, PITCH_C5
 
 // Note lengths in milliseconds
 #define NOTE_WHOLE     (2000)    // Whole note - 2 seconds
@@ -111,16 +111,27 @@
 #define NOTE_EIGHTH_80BPM     (375)     // Eighth note at 80 BPM
 
 typedef struct {
-    uint16_t frequency;  // Frequency in Hz
+    uint16_t left_frequency;  // Frequency in Hz
+    uint16_t right_frequency; // Frequency in Hz
     uint32_t duration_ms; // Duration in milliseconds
 } audio_note_t;
 
+// Structure to hold song information
+typedef struct {
+    const char* name;           // Short name for command reference
+    const audio_note_t* notes;  // Pointer to the song data
+    const char* description;    // Full song title and artist
+} audio_song_t;
 
 // Audio driver function prototypes
 void audio_init(void);
-void audio_play_tone(uint16_t frequency, uint32_t duration_ms);
-void audio_play_tone_async(uint16_t frequency);
+
+void audio_play_sound_blocking(uint32_t left_frequency, uint32_t right_frequency, uint32_t duration_ms);
+void audio_play_sound(uint32_t left_frequency, uint32_t right_frequency);
+
+void audio_play_note_blocking(const audio_note_t *note);
+void audio_play_song_blocking(const audio_song_t *song);
+
 void audio_stop(void);
-void audio_set_volume(uint8_t volume);  // Volume: 0-100
 bool audio_is_playing(void);
 

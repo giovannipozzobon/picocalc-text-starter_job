@@ -1,27 +1,10 @@
 #pragma once
 
 #include "drivers/audio.h"
-#include <string.h>
 
-// Structure to hold song information
-typedef struct {
-    const char* name;           // Short name for command reference
-    const audio_note_t* song;   // Pointer to the song data
-    const char* description;    // Full song title and artist
-} song_info_t;
+// Song lists
+extern const audio_song_t songs[];
 
 // Song function prototypes
-void play_song(const audio_note_t *song);
-const audio_note_t* find_song(const char* song_name);
-void list_songs(void);
-
-// External song arrays
-extern const audio_note_t song_mary_lamb[];
-extern const audio_note_t song_happy_birthday[];
-extern const audio_note_t song_twinkle[];
-extern const audio_note_t song_baa_baa[];
-extern const audio_note_t song_old_macdonald[];
-extern const audio_note_t song_itsy_bitsy_spider[];
-
-// Song list
-extern const song_info_t song_list[];
+const audio_song_t* find_song(const char* song_name);
+void show_song_library(void);

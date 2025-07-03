@@ -11,208 +11,584 @@
 #include "drivers/audio.h"
 #include "songs.h"
 
-// "Mary Had a Little Lamb" - Simple test song
-const audio_note_t song_mary_lamb[] = {
-    {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER},
-    {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_HALF},
-    {TONE_D4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER}, {TONE_D4, NOTE_HALF},
-    {TONE_E4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_G4, NOTE_HALF},
-    
-    {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER},
-    {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER},
-    {TONE_D4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER},
-    {TONE_C4, NOTE_WHOLE},
-    
-    // End marker
-    {TONE_SILENCE, 0}
-};
-
-// "Happy Birthday" - Classic celebration song
-const audio_note_t song_happy_birthday[] = {
-    {TONE_C4, NOTE_DOTTED_EIGHTH}, {TONE_C4, NOTE_SIXTEENTH}, {TONE_D4, NOTE_QUARTER},
-    {TONE_C4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER}, {TONE_E4, NOTE_HALF},
-    
-    {TONE_C4, NOTE_DOTTED_EIGHTH}, {TONE_C4, NOTE_SIXTEENTH}, {TONE_D4, NOTE_QUARTER},
-    {TONE_C4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_F4, NOTE_HALF},
-    
-    {TONE_C4, NOTE_DOTTED_EIGHTH}, {TONE_C4, NOTE_SIXTEENTH}, {TONE_C5, NOTE_QUARTER},
-    {TONE_A4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER},
-    
-    {TONE_AS4, NOTE_DOTTED_EIGHTH}, {TONE_AS4, NOTE_SIXTEENTH}, {TONE_A4, NOTE_QUARTER},
-    {TONE_F4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_F4, NOTE_HALF},
-    
-    // End marker
-    {TONE_SILENCE, 0}
-};
-
-// "Twinkle Twinkle Little Star" - Simple children's song
-const audio_note_t song_twinkle[] = {
-    {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER},
-    {TONE_A4, NOTE_QUARTER}, {TONE_A4, NOTE_QUARTER}, {TONE_G4, NOTE_HALF},
-    
-    {TONE_F4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER},
-    {TONE_D4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_HALF},
-    
-    {TONE_G4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER},
-    {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_HALF},
-    
-    {TONE_G4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER},
-    {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_HALF},
-    
-    {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER},
-    {TONE_A4, NOTE_QUARTER}, {TONE_A4, NOTE_QUARTER}, {TONE_G4, NOTE_HALF},
-    
-    {TONE_F4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER},
-    {TONE_D4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_HALF},
-    
-    // End marker
-    {TONE_SILENCE, 0}
-};
-
-// "Baa Baa Black Sheep" - Traditional nursery rhyme
-const audio_note_t song_baa_baa[] = {
+// "Baa Baa Black Sheep" - Traditional nursery rhyme with stereo harmony
+const audio_note_t notes_baa_baa[] = {
     // "Baa baa black sheep, have you any wool?"
-    {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER},
-    {TONE_A4, NOTE_QUARTER}, {TONE_A4, NOTE_QUARTER}, {TONE_G4, NOTE_HALF},
-    
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_G4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_G4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_A4, PITCH_F4, NOTE_QUARTER},
+    {PITCH_A4, PITCH_F4, NOTE_QUARTER},
+    {PITCH_G4, PITCH_E4, NOTE_HALF},
+
     // "Yes sir, yes sir, three bags full"
-    {TONE_F4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER},
-    {TONE_D4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_HALF},
-    
+    {PITCH_F4, PITCH_D4, NOTE_QUARTER},
+    {PITCH_F4, PITCH_D4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_HALF},
+
     // "One for the master, one for the dame"
-    {TONE_G4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER},
-    {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_HALF},
-    
+    {PITCH_G4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_G4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_F4, PITCH_D4, NOTE_QUARTER},
+    {PITCH_F4, PITCH_D4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_HALF},
+
     // "And one for the little boy who lives down the lane"
-    {TONE_G4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER},
-    {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_HALF},
-    
+    {PITCH_G4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_G4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_F4, PITCH_D4, NOTE_QUARTER},
+    {PITCH_F4, PITCH_D4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_HALF},
+
     // "Baa baa black sheep, have you any wool?" (repeat)
-    {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER},
-    {TONE_A4, NOTE_QUARTER}, {TONE_A4, NOTE_QUARTER}, {TONE_G4, NOTE_HALF},
-    
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_G4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_G4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_A4, PITCH_F4, NOTE_QUARTER},
+    {PITCH_A4, PITCH_F4, NOTE_QUARTER},
+    {PITCH_G4, PITCH_E4, NOTE_HALF},
+
     // "Yes sir, yes sir, three bags full" (repeat)
-    {TONE_F4, NOTE_QUARTER}, {TONE_F4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER},
-    {TONE_D4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_HALF},
-    
-    // End marker
-    {TONE_SILENCE, 0}
-};
+    {PITCH_F4, PITCH_D4, NOTE_QUARTER},
+    {PITCH_F4, PITCH_D4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_HALF},
 
-// "Old MacDonald Had a Farm" - Popular children's song
-const audio_note_t song_old_macdonald[] = {
+    // End marker
+    {SILENCE, SILENCE, 0}};
+
+// "Old MacDonald Had a Farm" - Popular children's song with stereo harmony
+const audio_note_t notes_old_macdonald[] = {
     // "Old MacDonald had a farm, E-I-E-I-O"
-    {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_G3, NOTE_QUARTER},
-    {TONE_A3, NOTE_QUARTER}, {TONE_A3, NOTE_QUARTER}, {TONE_G3, NOTE_HALF},
-    {TONE_G3, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER},
-    {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_HALF},
-    
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_G3, PITCH_E3, NOTE_QUARTER},
+    {PITCH_A3, PITCH_F3, NOTE_QUARTER},
+    {PITCH_A3, PITCH_F3, NOTE_QUARTER},
+    {PITCH_G3, PITCH_E3, NOTE_HALF},
+    {PITCH_G3, PITCH_E3, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_HALF},
+
     // "And on his farm he had a cow, E-I-E-I-O"
-    {TONE_G3, NOTE_QUARTER}, {TONE_G3, NOTE_QUARTER}, {TONE_G3, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER},
-    {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_HALF},
-    {TONE_G3, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER},
-    {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_HALF},
-    
-    // "With a moo-moo here, and a moo-moo there"
-    {TONE_C4, NOTE_EIGHTH}, {TONE_G3, NOTE_EIGHTH}, {TONE_C4, NOTE_EIGHTH}, {TONE_G3, NOTE_EIGHTH},
-    {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_EIGHTH}, {TONE_G3, NOTE_EIGHTH}, {TONE_C4, NOTE_EIGHTH}, {TONE_G3, NOTE_EIGHTH},
-    {TONE_C4, NOTE_QUARTER},
-    
+    {PITCH_G3, PITCH_E3, NOTE_QUARTER},
+    {PITCH_G3, PITCH_E3, NOTE_QUARTER},
+    {PITCH_G3, PITCH_E3, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_HALF},
+    {PITCH_G3, PITCH_E3, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_HALF},
+
+    // "With a moo-moo here, and a moo-moo there" with panning effect
+    {PITCH_C4, SILENCE, NOTE_EIGHTH},
+    {SILENCE, PITCH_G3, NOTE_EIGHTH},
+    {PITCH_C4, SILENCE, NOTE_EIGHTH},
+    {SILENCE, PITCH_G3, NOTE_EIGHTH},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {SILENCE, PITCH_C4, NOTE_EIGHTH},
+    {PITCH_G3, SILENCE, NOTE_EIGHTH},
+    {SILENCE, PITCH_C4, NOTE_EIGHTH},
+    {PITCH_G3, SILENCE, NOTE_EIGHTH},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+
     // "Here a moo, there a moo, everywhere a moo-moo"
-    {TONE_C4, NOTE_EIGHTH}, {TONE_G3, NOTE_EIGHTH}, {TONE_C4, NOTE_QUARTER},
-    {TONE_C4, NOTE_EIGHTH}, {TONE_G3, NOTE_EIGHTH}, {TONE_C4, NOTE_QUARTER},
-    {TONE_G3, NOTE_QUARTER}, {TONE_C4, NOTE_EIGHTH}, {TONE_G3, NOTE_EIGHTH}, {TONE_C4, NOTE_QUARTER},
-    
+    {PITCH_C4, SILENCE, NOTE_EIGHTH},
+    {SILENCE, PITCH_G3, NOTE_EIGHTH},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {SILENCE, PITCH_C4, NOTE_EIGHTH},
+    {PITCH_G3, SILENCE, NOTE_EIGHTH},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_G3, PITCH_E3, NOTE_QUARTER},
+    {SILENCE, PITCH_C4, NOTE_EIGHTH},
+    {PITCH_G3, SILENCE, NOTE_EIGHTH},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+
     // "Old MacDonald had a farm, E-I-E-I-O"
-    {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_G3, NOTE_QUARTER},
-    {TONE_A3, NOTE_QUARTER}, {TONE_A3, NOTE_QUARTER}, {TONE_G3, NOTE_HALF},
-    {TONE_G3, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER},
-    {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_WHOLE},
-    
-    // End marker
-    {TONE_SILENCE, 0}
-};
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_G3, PITCH_E3, NOTE_QUARTER},
+    {PITCH_A3, PITCH_F3, NOTE_QUARTER},
+    {PITCH_A3, PITCH_F3, NOTE_QUARTER},
+    {PITCH_G3, PITCH_E3, NOTE_HALF},
+    {PITCH_G3, PITCH_E3, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_WHOLE},
 
-// "Itsy Bitsy Spider" - Classic children's nursery rhyme
-const audio_note_t song_itsy_bitsy_spider[] = {
+    // End marker
+    {SILENCE, SILENCE, 0}};
+
+// "Itsy Bitsy Spider" - Classic children's nursery rhyme with stereo harmony
+const audio_note_t notes_itsy_bitsy_spider[] = {
     // "The itsy bitsy spider climbed up the water spout"
-    {TONE_G4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER},
-    {TONE_D4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER},
-    {TONE_C4, NOTE_HALF}, {TONE_SILENCE, NOTE_QUARTER},
-    
-    // "Down came the rain and washed the spider out"
-    {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER},
-    {TONE_D4, NOTE_QUARTER}, {TONE_G3, NOTE_QUARTER}, {TONE_G3, NOTE_QUARTER}, {TONE_G3, NOTE_QUARTER},
-    {TONE_C4, NOTE_HALF}, {TONE_SILENCE, NOTE_QUARTER},
-    
-    // "Out came the sun and dried up all the rain"
-    {TONE_G4, NOTE_QUARTER}, {TONE_G4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER},
-    {TONE_D4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER},
-    {TONE_D4, NOTE_HALF}, {TONE_SILENCE, NOTE_QUARTER},
-    
-    // "And the itsy bitsy spider climbed up the spout again"
-    {TONE_G4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER}, {TONE_C4, NOTE_QUARTER},
-    {TONE_D4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_E4, NOTE_QUARTER}, {TONE_D4, NOTE_QUARTER},
-    {TONE_C4, NOTE_QUARTER}, {TONE_G3, NOTE_QUARTER}, {TONE_C4, NOTE_WHOLE},
-    
-    // End marker
-    {TONE_SILENCE, 0}
-};
+    {PITCH_G4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_HALF},
+    {SILENCE, SILENCE, NOTE_QUARTER},
 
-// Song table for easy access
-const song_info_t song_list[] = {
-    {"mary", song_mary_lamb, "Mary Had a Little Lamb"},
-    {"birthday", song_happy_birthday, "Happy Birthday"},
-    {"twinkle", song_twinkle, "Twinkle Twinkle Little Star"},
-    {"baa", song_baa_baa, "Baa Baa Black Sheep"},
-    {"macdonald", song_old_macdonald, "Old MacDonald Had a Farm"},
-    {"spider", song_itsy_bitsy_spider, "Itsy Bitsy Spider"},
+    // "Down came the rain and washed the spider out"
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_G3, PITCH_E3, NOTE_QUARTER},
+    {PITCH_G3, PITCH_E3, NOTE_QUARTER},
+    {PITCH_G3, PITCH_E3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_HALF},
+    {SILENCE, SILENCE, NOTE_QUARTER},
+
+    // "Out came the sun and dried up all the rain" with panning effect
+    {PITCH_G4, SILENCE, NOTE_QUARTER},
+    {SILENCE, PITCH_G4, NOTE_QUARTER},
+    {PITCH_E4, SILENCE, NOTE_QUARTER},
+    {SILENCE, PITCH_E4, NOTE_QUARTER},
+    {PITCH_D4, SILENCE, NOTE_QUARTER},
+    {SILENCE, PITCH_D4, NOTE_QUARTER},
+    {PITCH_C4, SILENCE, NOTE_QUARTER},
+    {SILENCE, PITCH_E4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_HALF},
+    {SILENCE, SILENCE, NOTE_QUARTER},
+
+    // "And the itsy bitsy spider climbed up the spout again"
+    {PITCH_G4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_G3, PITCH_E3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_WHOLE},
+
+    // End marker
+    {SILENCE, SILENCE, 0}};
+
+// "Mary Had a Little Lamb" - Stereo version with call and response
+const audio_note_t notes_mary_lamb[] = {
+    // Melody on left, harmony on right
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_HALF},
+
+    // Switch channels - harmony on left, melody on right
+    {PITCH_B3, PITCH_D4, NOTE_QUARTER},
+    {PITCH_B3, PITCH_D4, NOTE_QUARTER},
+    {PITCH_B3, PITCH_D4, NOTE_HALF},
+    {PITCH_C4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_G4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_G4, NOTE_HALF},
+
+    // Back to original - melody left, harmony right
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_WHOLE},
+
+    // End marker
+    {SILENCE, SILENCE, 0}};
+
+// "Happy Birthday" - Stereo version with harmonies
+const audio_note_t notes_happy_birthday[] = {
+    // First verse - melody left, harmony right
+    {PITCH_C4, PITCH_A3, NOTE_DOTTED_EIGHTH},
+    {PITCH_C4, PITCH_A3, NOTE_SIXTEENTH},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_F4, PITCH_D4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_HALF},
+
+    {PITCH_C4, PITCH_A3, NOTE_DOTTED_EIGHTH},
+    {PITCH_C4, PITCH_A3, NOTE_SIXTEENTH},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_G4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_F4, PITCH_D4, NOTE_HALF},
+
+    // Switch channels for variety
+    {PITCH_A3, PITCH_C4, NOTE_DOTTED_EIGHTH},
+    {PITCH_A3, PITCH_C4, NOTE_SIXTEENTH},
+    {PITCH_B3, PITCH_C5, NOTE_QUARTER},
+    {PITCH_A3, PITCH_A4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_F4, NOTE_QUARTER},
+    {PITCH_C4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_B3, PITCH_D4, NOTE_QUARTER},
+
+    {PITCH_D4, PITCH_AS4, NOTE_DOTTED_EIGHTH},
+    {PITCH_D4, PITCH_AS4, NOTE_SIXTEENTH},
+    {PITCH_C4, PITCH_A4, NOTE_QUARTER},
+    {PITCH_A3, PITCH_F4, NOTE_QUARTER},
+    {PITCH_B3, PITCH_G4, NOTE_QUARTER},
+    {PITCH_A3, PITCH_F4, NOTE_HALF},
+
+    // End marker
+    {SILENCE, SILENCE, 0}};
+
+// "Twinkle Twinkle Little Star" - Stereo version with panning effect
+const audio_note_t notes_twinkle[] = {
+    // Start left, move to right
+    {PITCH_C4, SILENCE, NOTE_QUARTER},
+    {SILENCE, PITCH_C4, NOTE_QUARTER},
+    {PITCH_G4, SILENCE, NOTE_QUARTER},
+    {SILENCE, PITCH_G4, NOTE_QUARTER},
+    {PITCH_A4, SILENCE, NOTE_QUARTER},
+    {SILENCE, PITCH_A4, NOTE_QUARTER},
+    {PITCH_G4, PITCH_G4, NOTE_HALF}, // Both channels
+
+    {SILENCE, PITCH_F4, NOTE_QUARTER},
+    {PITCH_F4, SILENCE, NOTE_QUARTER},
+    {SILENCE, PITCH_E4, NOTE_QUARTER},
+    {PITCH_E4, SILENCE, NOTE_QUARTER},
+    {SILENCE, PITCH_D4, NOTE_QUARTER},
+    {PITCH_D4, SILENCE, NOTE_QUARTER},
+    {PITCH_C4, PITCH_C4, NOTE_HALF}, // Both channels
+
+    // Harmony section
+    {PITCH_G4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_G4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_F4, PITCH_D4, NOTE_QUARTER},
+    {PITCH_F4, PITCH_D4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_HALF},
+
+    {PITCH_G4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_G4, PITCH_E4, NOTE_QUARTER},
+    {PITCH_F4, PITCH_D4, NOTE_QUARTER},
+    {PITCH_F4, PITCH_D4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_HALF},
+
+    // Final section with panning
+    {PITCH_C4, SILENCE, NOTE_QUARTER},
+    {SILENCE, PITCH_C4, NOTE_QUARTER},
+    {PITCH_G4, SILENCE, NOTE_QUARTER},
+    {SILENCE, PITCH_G4, NOTE_QUARTER},
+    {PITCH_A4, SILENCE, NOTE_QUARTER},
+    {SILENCE, PITCH_A4, NOTE_QUARTER},
+    {PITCH_G4, PITCH_G4, NOTE_HALF},
+
+    {PITCH_F4, PITCH_D4, NOTE_QUARTER},
+    {PITCH_F4, PITCH_D4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_D4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_A3, NOTE_HALF},
+
+    // End marker
+    {SILENCE, SILENCE, 0}};
+
+// "Canon in D" - Simplified stereo version with overlapping melodies
+const audio_note_t notes_canon_in_d[] = {
+    // Left channel starts first
+    {PITCH_D4, SILENCE, NOTE_HALF},
+    {PITCH_A3, SILENCE, NOTE_HALF},
+    {PITCH_B3, SILENCE, NOTE_HALF},
+    {PITCH_FS3, SILENCE, NOTE_HALF},
+
+    // Right channel joins with the same melody delayed
+    {PITCH_G3, PITCH_D4, NOTE_HALF},
+    {PITCH_D3, PITCH_A3, NOTE_HALF},
+    {PITCH_G3, PITCH_B3, NOTE_HALF},
+    {PITCH_A3, PITCH_FS3, NOTE_HALF},
+
+    // Both channels in harmony
+    {PITCH_D4, PITCH_G3, NOTE_QUARTER},
+    {PITCH_E4, PITCH_A3, NOTE_QUARTER},
+    {PITCH_FS4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_G4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_A4, PITCH_D4, NOTE_QUARTER},
+    {PITCH_G4, PITCH_C4, NOTE_QUARTER},
+    {PITCH_FS4, PITCH_B3, NOTE_QUARTER},
+    {PITCH_E4, PITCH_A3, NOTE_QUARTER},
+
+    {PITCH_D4, PITCH_G3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_FS3, NOTE_QUARTER},
+    {PITCH_B3, PITCH_E3, NOTE_QUARTER},
+    {PITCH_A3, PITCH_D3, NOTE_QUARTER},
+    {PITCH_B3, PITCH_E3, NOTE_QUARTER},
+    {PITCH_C4, PITCH_FS3, NOTE_QUARTER},
+    {PITCH_D4, PITCH_G3, NOTE_QUARTER},
+    {PITCH_E4, PITCH_A3, NOTE_QUARTER},
+
+    // Finale with both channels
+    {PITCH_FS4, PITCH_D4, NOTE_HALF},
+    {PITCH_G4, PITCH_E4, NOTE_HALF},
+    {PITCH_A4, PITCH_FS4, NOTE_HALF},
+    {PITCH_D5, PITCH_A4, NOTE_WHOLE},
+
+    // End marker
+    {SILENCE, SILENCE, 0}};
+
+// "Für Elise" - Simplified opening with stereo harmony
+const audio_note_t notes_fur_elise[] = {
+    // Famous opening melody with bass accompaniment
+    {PITCH_E4, SILENCE, NOTE_EIGHTH},
+    {PITCH_DS4, SILENCE, NOTE_EIGHTH},
+    {PITCH_E4, PITCH_A3, NOTE_EIGHTH},
+    {PITCH_DS4, SILENCE, NOTE_EIGHTH},
+    {PITCH_E4, SILENCE, NOTE_EIGHTH},
+    {PITCH_B3, PITCH_E3, NOTE_EIGHTH},
+    {PITCH_D4, SILENCE, NOTE_EIGHTH},
+    {PITCH_C4, PITCH_A3, NOTE_EIGHTH},
+
+    {PITCH_A3, PITCH_C3, NOTE_QUARTER},
+    {SILENCE, PITCH_E3, NOTE_EIGHTH},
+    {PITCH_C4, PITCH_A3, NOTE_EIGHTH},
+    {PITCH_E3, SILENCE, NOTE_EIGHTH},
+    {PITCH_A3, PITCH_C4, NOTE_EIGHTH},
+
+    {PITCH_B3, PITCH_E3, NOTE_QUARTER},
+    {SILENCE, PITCH_E3, NOTE_EIGHTH},
+    {PITCH_E4, PITCH_GS3, NOTE_EIGHTH},
+    {PITCH_GS3, SILENCE, NOTE_EIGHTH},
+    {PITCH_B3, PITCH_E4, NOTE_EIGHTH},
+
+    // Repeat with variation
+    {PITCH_C4, PITCH_A3, NOTE_EIGHTH},
+    {SILENCE, SILENCE, NOTE_EIGHTH},
+    {PITCH_E4, PITCH_A3, NOTE_EIGHTH},
+    {PITCH_DS4, SILENCE, NOTE_EIGHTH},
+    {PITCH_E4, PITCH_A3, NOTE_EIGHTH},
+    {PITCH_DS4, SILENCE, NOTE_EIGHTH},
+    {PITCH_E4, PITCH_A3, NOTE_EIGHTH},
+    {PITCH_B3, PITCH_E3, NOTE_EIGHTH},
+
+    {PITCH_D4, SILENCE, NOTE_EIGHTH},
+    {PITCH_C4, PITCH_A3, NOTE_EIGHTH},
+    {PITCH_A3, PITCH_C3, NOTE_QUARTER},
+    {SILENCE, PITCH_E3, NOTE_EIGHTH},
+    {PITCH_C4, PITCH_A3, NOTE_EIGHTH},
+    {PITCH_E3, SILENCE, NOTE_EIGHTH},
+    {PITCH_A3, PITCH_C4, NOTE_EIGHTH},
+
+    {PITCH_B3, PITCH_E3, NOTE_QUARTER},
+    {SILENCE, PITCH_E3, NOTE_EIGHTH},
+    {PITCH_C4, PITCH_A3, NOTE_EIGHTH},
+    {PITCH_B3, SILENCE, NOTE_EIGHTH},
+    {PITCH_A3, PITCH_C4, NOTE_QUARTER},
+
+    // End marker
+    {SILENCE, SILENCE, 0}};
+
+// "Moonlight Sonata" - Simplified first movement opening
+const audio_note_t notes_moonlight_sonata[] = {
+    // Characteristic triplet accompaniment in left, melody in right
+    {PITCH_GS3, SILENCE, NOTE_EIGHTH},
+    {PITCH_CS4, SILENCE, NOTE_EIGHTH},
+    {PITCH_E4, PITCH_GS4, NOTE_EIGHTH},
+    {PITCH_GS3, SILENCE, NOTE_EIGHTH},
+    {PITCH_CS4, SILENCE, NOTE_EIGHTH},
+    {PITCH_E4, PITCH_GS4, NOTE_EIGHTH},
+
+    {PITCH_A3, SILENCE, NOTE_EIGHTH},
+    {PITCH_CS4, SILENCE, NOTE_EIGHTH},
+    {PITCH_E4, PITCH_A4, NOTE_EIGHTH},
+    {PITCH_A3, SILENCE, NOTE_EIGHTH},
+    {PITCH_CS4, SILENCE, NOTE_EIGHTH},
+    {PITCH_E4, PITCH_A4, NOTE_EIGHTH},
+
+    {PITCH_FS3, SILENCE, NOTE_EIGHTH},
+    {PITCH_CS4, SILENCE, NOTE_EIGHTH},
+    {PITCH_DS4, PITCH_FS4, NOTE_EIGHTH},
+    {PITCH_FS3, SILENCE, NOTE_EIGHTH},
+    {PITCH_CS4, SILENCE, NOTE_EIGHTH},
+    {PITCH_DS4, PITCH_FS4, NOTE_EIGHTH},
+
+    {PITCH_GS3, SILENCE, NOTE_EIGHTH},
+    {PITCH_B3, SILENCE, NOTE_EIGHTH},
+    {PITCH_E4, PITCH_GS4, NOTE_EIGHTH},
+    {PITCH_GS3, SILENCE, NOTE_EIGHTH},
+    {PITCH_B3, SILENCE, NOTE_EIGHTH},
+    {PITCH_E4, PITCH_GS4, NOTE_EIGHTH},
+
+    // Melody becomes more prominent
+    {PITCH_A3, SILENCE, NOTE_EIGHTH},
+    {PITCH_CS4, SILENCE, NOTE_EIGHTH},
+    {PITCH_E4, PITCH_A4, NOTE_QUARTER},
+    {PITCH_A3, SILENCE, NOTE_EIGHTH},
+    {PITCH_CS4, SILENCE, NOTE_EIGHTH},
+    {PITCH_E4, PITCH_GS4, NOTE_QUARTER},
+
+    {PITCH_FS3, SILENCE, NOTE_EIGHTH},
+    {PITCH_CS4, SILENCE, NOTE_EIGHTH},
+    {PITCH_DS4, PITCH_FS4, NOTE_QUARTER},
+    {PITCH_GS3, SILENCE, NOTE_EIGHTH},
+    {PITCH_CS4, SILENCE, NOTE_EIGHTH},
+    {PITCH_E4, PITCH_E4, NOTE_HALF},
+
+    // End marker
+    {SILENCE, SILENCE, 0}};
+
+// "Ode to Joy" - Beethoven's 9th Symphony, arranged for stereo
+const audio_note_t notes_ode_to_joy[] = {
+    // Opening phrase - melody on right, bass on left
+    {PITCH_E3, PITCH_E4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_E4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_F4, NOTE_QUARTER},
+    {PITCH_A3, PITCH_G4, NOTE_QUARTER},
+    {PITCH_A3, PITCH_G4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_F4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_E4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_D4, NOTE_QUARTER},
+
+    // Second phrase
+    {PITCH_C3, PITCH_C4, NOTE_QUARTER},
+    {PITCH_C3, PITCH_C4, NOTE_QUARTER},
+    {PITCH_C3, PITCH_D4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_E4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_E4, NOTE_DOTTED_QUARTER},
+    {PITCH_C3, PITCH_D4, NOTE_EIGHTH},
+    {PITCH_C3, PITCH_D4, NOTE_HALF},
+
+    // Repeat of opening phrase
+    {PITCH_E3, PITCH_E4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_E4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_F4, NOTE_QUARTER},
+    {PITCH_A3, PITCH_G4, NOTE_QUARTER},
+    {PITCH_A3, PITCH_G4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_F4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_E4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_D4, NOTE_QUARTER},
+
+    // Final phrase of first section
+    {PITCH_C3, PITCH_C4, NOTE_QUARTER},
+    {PITCH_C3, PITCH_C4, NOTE_QUARTER},
+    {PITCH_C3, PITCH_D4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_E4, NOTE_QUARTER},
+    {PITCH_C3, PITCH_D4, NOTE_DOTTED_QUARTER},
+    {PITCH_C3, PITCH_C4, NOTE_EIGHTH},
+    {PITCH_C3, PITCH_C4, NOTE_HALF},
+
+    // Bridge section with more complex harmonies
+    {PITCH_C3, PITCH_D4, NOTE_QUARTER},
+    {PITCH_C3, PITCH_D4, NOTE_QUARTER},
+    {PITCH_D3, PITCH_E4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_D4, NOTE_QUARTER},
+    {PITCH_D3, PITCH_E4, NOTE_EIGHTH},
+    {PITCH_E3, PITCH_C4, NOTE_EIGHTH},
+    {PITCH_E3, PITCH_D4, NOTE_QUARTER},
+    {PITCH_C3, PITCH_C4, NOTE_QUARTER},
+
+    // Repeat bridge with variation
+    {PITCH_C3, PITCH_D4, NOTE_QUARTER},
+    {PITCH_C3, PITCH_D4, NOTE_QUARTER},
+    {PITCH_D3, PITCH_E4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_C4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_D4, NOTE_QUARTER},
+    {PITCH_D3, PITCH_E4, NOTE_EIGHTH},
+    {PITCH_E3, PITCH_C4, NOTE_EIGHTH},
+    {PITCH_E3, PITCH_D4, NOTE_QUARTER},
+    {PITCH_C3, PITCH_C4, NOTE_QUARTER},
+
+    // Final triumphant section with both channels in harmony
+    {PITCH_E3, PITCH_E4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_E4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_F4, NOTE_QUARTER},
+    {PITCH_A3, PITCH_G4, NOTE_QUARTER},
+    {PITCH_A3, PITCH_G4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_F4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_E4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_D4, NOTE_QUARTER},
+
+    // Grand finale
+    {PITCH_C3, PITCH_C4, NOTE_QUARTER},
+    {PITCH_C3, PITCH_C4, NOTE_QUARTER},
+    {PITCH_C3, PITCH_D4, NOTE_QUARTER},
+    {PITCH_E3, PITCH_E4, NOTE_QUARTER},
+    {PITCH_C3, PITCH_D4, NOTE_DOTTED_QUARTER},
+    {PITCH_C3, PITCH_C4, NOTE_EIGHTH},
+    {PITCH_C3, PITCH_C4, NOTE_WHOLE},
+
+    // End marker
+    {SILENCE, SILENCE, 0}};
+
+// Song library for easy access
+const audio_song_t songs[] = {
+    {"baa", notes_baa_baa, "Baa Baa Black Sheep"},
+    {"birthday", notes_happy_birthday, "Happy Birthday"},
+    {"canon", notes_canon_in_d, "Canon in D"},
+    {"elise", notes_fur_elise, "Fur Elise"},
+    {"macdonald", notes_old_macdonald, "Old MacDonald Had a Farm"},
+    {"mary", notes_mary_lamb, "Mary Had a Little Lamb"},
+    {"moonlight", notes_moonlight_sonata, "Moonlight Sonata"},
+    {"ode", notes_ode_to_joy, "Ode to Joy (Beethoven)"},
+    {"spider", notes_itsy_bitsy_spider, "Itsy Bitsy Spider"},
+    {"twinkle", notes_twinkle, "Twinkle Twinkle Little Star"},
     {NULL, NULL, NULL} // End marker
 };
 
-// Function to play a song from the song array
-void play_song(const audio_note_t *song)
-{
-    if (!song) return;
-    
-    int note_index = 0;
-    while (song[note_index].duration_ms != 0) {
-        audio_play_tone(song[note_index].frequency, song[note_index].duration_ms);
-        
-        // Small gap between notes for clarity (except for silence notes)
-        if (song[note_index].frequency != TONE_SILENCE) {
-            sleep_ms(20);
-        }
-        
-        note_index++;
-        
-        // Check for user interrupt (BREAK key)
-        extern volatile bool user_interrupt;
-        if (user_interrupt) {
-            audio_stop();
-            break;
-        }
-    }
-    
-    audio_stop(); // Ensure audio is stopped at the end
-}
 
 // Function to find a song by name
-const audio_note_t* find_song(const char* song_name)
+const audio_song_t *find_song(const char *song_name)
 {
-    for (int i = 0; song_list[i].name != NULL; i++) {
-        if (strcmp(song_list[i].name, song_name) == 0) {
-            return song_list[i].song;
+    for (int i = 0; songs[i].name != NULL; i++)
+    {
+        if (strcmp(songs[i].name, song_name) == 0)
+        {
+            return &songs[i];
         }
     }
     return NULL; // Song not found
 }
 
 // Function to list all available songs
-void list_songs(void)
+void show_song_library(void)
 {
-    printf("Available songs:\n\n");
-    for (int i = 0; song_list[i].name != NULL; i++) {
-        printf("  %s - %s\n", song_list[i].name, song_list[i].description);
+    printf("Song Library:\n\n");
+
+    for (int i = 0; songs[i].name != NULL; i++)
+    {
+        printf("  %s - %s\n", songs[i].name, songs[i].description);
     }
 }
