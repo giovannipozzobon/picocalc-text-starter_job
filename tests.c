@@ -395,6 +395,7 @@ void displaytest()
     uint64_t cps_elapsed_us = absolute_time_diff_us(start_time, end_time);
     float cps_elapsed_seconds = cps_elapsed_us / 1000000.0;
     float chars_per_second = output_chars / cps_elapsed_seconds;
+    float displayed_per_second = chars / cps_elapsed_seconds;
 
     printf("\n\n\n\033(B\033[m\033[?25h");
     printf("Display stress test complete.\n");
@@ -404,6 +405,10 @@ void displaytest()
     printf("\nCharacters processed: %d\n", output_chars);
     printf("Characters time elapsed: %.2f seconds\n", cps_elapsed_seconds);
     printf("Average characters per second: %.0f\n", chars_per_second);
+    printf("Characters displayed: %d\n", chars);
+    printf("Average displayed cps: %.0f\n", displayed_per_second);
+
+
 }
 
 

@@ -508,6 +508,6 @@ A fun song library is provided to give additional testing the audio driver and h
 Tests to make sure the hardware and drivers are working correctly.
 
 - **audio** – Test the audio driver with different notes, distinct left/right separation, melodies bouncing between channels, and harmonious intervals. 
-- **display** – Display driver stress test with scrolling lines of different colours, writing ANSI escape codes and characters as quickly as possible.
+- **display** – Display driver stress test with scrolling lines of different colours, writing ANSI escape codes and characters as quickly as possible. Note: characters processed includes the processing of escape squences where characters displayed are the number of characters drawn on the display.
 
 
