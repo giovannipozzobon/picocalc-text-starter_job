@@ -1,5 +1,7 @@
 #pragma once
 
+#include "pico/stdlib.h"
+
 #define LCD_SPI         (spi1)          // SPI interface for the LCD display
 
 // Raspberry Pi Pico board GPIO pins

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "pico/stdlib.h"
+
 // Keyboard key definitions
 #define KEY_MOD_ALT         (0xA1)
 #define KEY_MOD_SHL         (0xA2)

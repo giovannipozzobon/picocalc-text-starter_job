@@ -17,6 +17,25 @@ This starter includes drivers for:
 
 > This is a starter project. Feel free to take bits and pieces and modify what is here to suit YOUR project.
 
+# Getting Started
+
+Hello, world!
+
+``` C
+#include <stdio.h>
+
+// Include driver headers here
+#include "drivers/picocalc.h"
+
+int main()
+{
+    picocalc_init(NULL);
+
+    // Your project starts here
+    printf("Hello, world!\n");
+}
+```
+
 # High-Level Drivers
 
 ## PicoCalc

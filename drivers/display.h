@@ -1,5 +1,6 @@
 #pragma once
 
+#include "pico/stdlib.h"
 #include "font.h"
 
 // Processing ANSI escape sequences is a small state machine. These

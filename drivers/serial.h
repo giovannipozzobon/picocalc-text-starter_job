@@ -1,5 +1,7 @@
 #pragma once
 
+#include "pico/stdlib.h"
+
 #define UART_PORT           (uart0)        // UART interface for the serial console
 #define UART_IRQ            (UART0_IRQ)    // UART interrupt number
 

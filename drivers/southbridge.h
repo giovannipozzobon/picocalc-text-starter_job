@@ -1,6 +1,9 @@
 #pragma once
 
+#include "pico/stdlib.h"
+
 #define SB_I2C              (i2c1)      // I2C interface for the south bridge
+
 // Raspberry Pi Pico board GPIO pins
 #define SB_SDA              (6)
 #define SB_SCL              (7)
