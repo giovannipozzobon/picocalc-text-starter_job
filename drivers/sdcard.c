@@ -575,7 +575,8 @@ sd_error_t sd_get_free_space(uint64_t *free_space)
     if (fsinfo->lead_sig == 0x41615252 &&
         fsinfo->struc_sig == 0x61417272 &&
         fsinfo->trail_sig == 0xAA550000 &&
-        fsinfo->free_count != 0xFFFFFFFF)
+        fsinfo->free_count != 0xFFFFFFFF &&
+        fsinfo->free_count <= cluster_count)
     {
         *free_space = ((uint64_t)fsinfo->free_count) * bytes_per_cluster;
         return SD_OK; // Successfully retrieved free space
@@ -944,11 +945,9 @@ sd_error_t sd_dir_open(sd_dir_t *dir, const char *path)
 
     // Initialise directory structure
     dir->is_open = true;
-    dir->dir_sector = cluster_to_sector(boot_sector.root_cluster);
-    dir->max_entries = bytes_per_cluster / 32; // 32 bytes per directory entry
-    dir->sector_offset = 0;
-    dir->current_sector = 0;
-    dir->current_entry = 0;
+    dir->start_cluster = boot_sector.root_cluster;
+    dir->current_cluster = dir->start_cluster;
+    dir->position = 0;
 
     return SD_OK;
 }
@@ -957,7 +956,7 @@ sd_error_t sd_dir_read(sd_dir_t *dir, sd_dir_entry_t *dir_entry)
 {
     char long_filename[MAX_FILENAME_LEN + 1];
     uint8_t expected_checksum = 0;
-    uint32_t sectors_to_read = (dir->max_entries * 32 + SECTOR_SIZE - 1) / SECTOR_SIZE;
+    uint32_t read_sector = 0xFFFFFFFF; // Invalid sector to start with
 
     if (!dir || !dir_entry)
     {
@@ -975,79 +974,62 @@ sd_error_t sd_dir_read(sd_dir_t *dir, sd_dir_entry_t *dir_entry)
     }
 
     memset(dir_entry, 0, sizeof(sd_dir_entry_t));
+
+    if (dir->last_entry_read)
+    {
+        // If we have already read the last entry, return end of directory
+        return SD_OK;
+    }
+
     long_filename[0] = '\0'; // Reset long filename buffer
 
     // Search through all directory sectors
-    for (; dir->sector_offset < sectors_to_read && dir->sector_offset < 8; dir->sector_offset++)
+    while (!dir->last_entry_read && dir_entry->name[0] == '\0')
     {
-        uint32_t current_sector = dir->dir_sector + dir->sector_offset;
-        if (current_sector != dir->current_sector)
+        uint32_t cluster_offset = dir->position % bytes_per_cluster;
+        uint32_t sector_in_cluster = cluster_offset / SECTOR_SIZE;
+        uint32_t byte_in_sector = cluster_offset % SECTOR_SIZE;
+
+        uint32_t sector = cluster_to_sector(dir->current_cluster) + sector_in_cluster;
+
+        if (sector != read_sector)
         {
-            sd_error_t result = sd_read_sector(current_sector, sector_buffer);
+            sd_error_t result = sd_read_sector(sector, sector_buffer);
             if (result != SD_OK)
             {
-                sd_dir_close(dir);
                 return result;
             }
-            dir->current_sector = current_sector;
-            dir->current_entry = 0; // Reset entry index for new sector
+            read_sector = sector;
         }
 
-        // Look for the file in directory entries
-        for (; dir->current_entry < SECTOR_SIZE / 32; dir->current_entry++)
+        fat_dir_entry_t *entry = (fat_dir_entry_t *)(sector_buffer + dir->position % SECTOR_SIZE);
+
+        if (entry->name[0] == DIR_ENTRY_END_MARKER)
         {
-            fat_dir_entry_t *entry = (fat_dir_entry_t *)(sector_buffer + (dir->current_entry * 32));
-
-            if (entry->name[0] == DIR_ENTRY_END_MARKER)
+            // End of directory
+            dir->last_entry_read = true; // Mark that we reached the end
+        }
+        else if (entry->attr == ATTR_LONG_NAME)
+        {
+            // Populate long filename buffer with this entry's name contents
+            fat_lfn_entry_t *lfn_entry = (fat_lfn_entry_t *)entry;
+            if (lfn_entry->seq & 0x40)
             {
-                // End of directory
-                sd_dir_close(dir);
-                return SD_OK;
+                // This is the last entry for the long filename and the first entry of the sequence
+                // We are starting to build a new long filename, clear the long_filename buffer
+                memset(long_filename, 0, sizeof(long_filename));
+                expected_checksum = lfn_entry->checksum; // Save checksum for later comparison
             }
-            if (entry->name[0] == DIR_ENTRY_FREE)
-            {
-                continue; // Deleted entry
-            }
-            if (entry->attr == ATTR_LONG_NAME)
-            {
-                // Populate long filename buffer with this entry's name contents
-                fat_lfn_entry_t *lfn_entry = (fat_lfn_entry_t *)entry;
-                if (lfn_entry->seq & 0x40)
-                {
-                    // This is the last entry for the long filename and the first entry of the sequence
-                    // We are starting to build a new long filename, clear the long_filename buffer
-                    memset(long_filename, 0, sizeof(long_filename));
-                    expected_checksum = lfn_entry->checksum; // Save checksum for later comparison
-                }
 
-                if (lfn_entry->checksum != expected_checksum)
-                {
-                    // Checksum mismatch - this is not part of the same long filename
-                    continue;
-                }
-
+            if (lfn_entry->checksum == expected_checksum)
+            {
                 // Copy this entry's part of the long filename into the long_filename buffer
                 int offset = ((lfn_entry->seq & 0x3F) - 1) * DIR_LFN_PART_SIZE;
                 lfn_entry_into_buffer(lfn_entry, long_filename + offset);
-                continue; // Continue to next entry
             }
-            if (entry->attr & ATTR_VOLUME_ID)
-            {
-                continue; // Volume label, skip it
-            }
-            if (entry->attr & ATTR_SYSTEM)
-            {
-                continue; // System file, skip it
-            }
-            if (entry->attr & ATTR_HIDDEN)
-            {
-                continue; // Hidden file, skip it
-            }
-            // if (entry->attr & ATTR_DIRECTORY)
-            // {
-            //     continue; // Skip directories for now
-            // }
-
+        }
+        else if ((entry->attr & 0x0E) == 0 && entry->name[0] != DIR_ENTRY_FREE)
+        {
             uint8_t checksum = lfn_checksum(entry->name);
             // Now check to see if this is the entry we are looking for
             if (long_filename[0] != '\0' && expected_checksum == checksum)
@@ -1063,15 +1045,30 @@ sd_error_t sd_dir_read(sd_dir_t *dir, sd_dir_entry_t *dir_entry)
             dir_entry->size = entry->file_size;
             dir_entry->date = entry->wrt_date;
             dir_entry->time = entry->wrt_time;
-            dir->current_entry++;
-            if (dir->current_entry >= SECTOR_SIZE / 32)
+        }
+
+        dir->position += 32; // Move to next entry (32 bytes per entry)
+
+        // Check if we need to move to the next cluster
+        if ((dir->position % bytes_per_cluster) == 0)
+        {
+            uint32_t next_cluster;
+            sd_error_t result = read_cluster_fat_entry(dir->current_cluster, &next_cluster);
+            if (result != SD_OK)
             {
-                dir->sector_offset++;   // Move to next sector if we reached the end of current one
-                dir->current_entry = 0; // Reset entry index for next sector
+                return result; // Error reading FAT entry
             }
-            return SD_OK;
+            if (next_cluster >= FAT32_ENTRY_EOC)
+            {
+                // End of cluster chain
+                dir->last_entry_read = true; // Mark that we reached the end
+                return SD_OK; // No more entries to read
+            }
+            dir->current_cluster = next_cluster;
         }
     }
+
+    return SD_OK; // Successfully read a directory entry
 }
 
 sd_error_t sd_dir_close(sd_dir_t *dir)

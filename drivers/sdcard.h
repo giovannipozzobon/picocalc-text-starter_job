@@ -102,11 +102,10 @@ typedef struct
 typedef struct
 {
     bool is_open;
-    uint32_t dir_sector;
-    uint32_t max_entries;
-    uint32_t sector_offset; // Current sector offset in the directory
-    uint32_t current_sector;
-    uint32_t current_entry; // Current entry index in the directory
+    uint32_t start_cluster;
+    uint32_t current_cluster;
+    uint32_t position;
+    bool last_entry_read;
 } sd_dir_t;
 
 // Directory entry structure
