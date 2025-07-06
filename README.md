@@ -14,6 +14,7 @@ This starter includes drivers for:
 - Keyboard
 - Pico onboard LED (WiFi-option aware)
 - Serial port
+- SD Card
 - Southbridge functions (battery, backlights)
 
 This starter does not contain the best-of-bread drivers for each component, but rather enough capability to get **your project "started" fast**.
