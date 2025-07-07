@@ -1,6 +1,6 @@
 # On-board LED
 
-Controlls the on-board LED taking in to account the difference with the WiFi enabled Pico.
+Controls the on-board LED taking in to account the difference with the WiFi enabled Pico.
 
 ## led_init
 

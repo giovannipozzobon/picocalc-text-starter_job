@@ -101,17 +101,17 @@ Tests to make sure the hardware and drivers are working correctly.
 
 Documentation for the high-level drivers. These drivers use low-level drivers to function.
 
-- [PicoCalc](docs/picocalc.md)
-- [Display](docs/display.md)
-- [Keyboard](docs/keyboard.md)
+- [PicoCalc](docs/picocalc.md) – pseudo driver configures the southbridge, display and keyboard drivers
+- [Display](docs/display.md) – emulates an ANSI terminal
+- [Keyboard](docs/keyboard.md) – uses a timer loop that polls the PicoCalc's southbridge for key presses
 
 
 # Low-Level Drivers
 
 Documentation for the low-level drivers. These drivers talk directly to the hardware.
 
-- [Audio](docs/audio.md)
-- [LCD](docs/lcd.md)
-- [On-board LED](docs/onboard_led.md)
-- [Serial](docs/serial.md)
-- [Southbridge](docs/southbridge.md)
+- [Audio](docs/audio.md) – simple audio driver can play stereo notes
+- [LCD](docs/lcd.md) – driver for the LCD display that is optimised for displaying text
+- [On-board LED](docs/onboard_led.md) – controls the on-board LED
+- [Serial](docs/serial.md) – driver for the USB C serial port
+- [Southbridge](docs/southbridge.md) – interfaces to the low-speed devices (keyboard, backlight, battery)
