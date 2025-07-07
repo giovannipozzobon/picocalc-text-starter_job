@@ -9,7 +9,7 @@ This starter includes drivers for:
 - Audio (stereo)
 - Display (multicolour text with ANSI escape code emulation)
 - Keyboard
-- Pico onboard LED (WIFI-option aware)
+- Pico onboard LED (WiFi-option aware)
 - Serial port
 - Southbridge functions (battery, backlights)
 
@@ -35,6 +35,16 @@ int main()
     printf("Hello, world!\n");
 }
 ```
+
+## Configuration
+
+If you are using [Visual Studio Code](https://code.visualstudio.com) and the [Raspberry Pi Pico](https://marketplace.visualstudio.com/items?itemName=raspberry-pi.raspberry-pi-pico) extension, remember to "Switch Board" to the Pico you are using.
+
+> You if you are using a third-party board with WiFi you will also need to add that board to list of boards that support WiFi near the end of `CMakeList.txt`.
+
+### Manual Configuration
+
+Update `CMakeLists.txt` to set the board to the Pico you are using (PICO_BOARD). 
 
 # High-Level Drivers
 
