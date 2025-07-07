@@ -40,5 +40,5 @@
     "files.associations": {
         "*.inc": "arm",
     },
-    "cortex-debug.variableUseNaturalFormat": true
+    "cortex-debug.variableUseNaturalFormat": false
 }

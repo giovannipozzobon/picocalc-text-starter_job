@@ -24,10 +24,12 @@ static const command_t commands[] = {
     {"box", box, "Draw a box on the screen"},
     {"bye", bye, "Reboot into BOOTSEL mode"},
     {"cls", clearscreen, "Clear the screen"},
-    {"dir", sd_dir, "List files on SD card"},
+    {"cd", cd, "Change directory"},
+    {"dir", dir, "List files on SD card"},
     {"free", sd_free, "Show free space on SD card"},
     {"more", sd_more, "Page through a file"},
     {"play", play, "Play a song"},
+    {"pwd", sd_pwd, "Print working directory"},
     {"sdcard", sd_status, "Show SD card status"},
     {"songs", show_song_library, "Show song library"},
     {"test", test, "Run a test"},
@@ -138,6 +140,14 @@ void run_command(const char *command)
             else if (strcmp(cmd_name, "test") == 0 && cmd_arg != NULL)
             {
                 run_named_test(cmd_arg);
+            }
+            else if (strcmp(cmd_name, "dir") == 0 && cmd_arg != NULL)
+            {
+                sd_dir_dirname(cmd_arg);
+            }
+            else if (strcmp(cmd_name, "cd") == 0 && cmd_arg != NULL)
+            {
+                cd_dirname(cmd_arg);
             }
             else
             {
@@ -337,19 +347,17 @@ static void get_str_size(char *buffer, uint32_t buffer_size, uint64_t bytes)
 
 void sd_status()
 {
-    printf("SD Card Status:\n");
-
     if (!sd_card_present())
     {
-        printf("  SD card not inserted\n");
+        printf("SD card not inserted\n");
         return;
     }
 
     sd_error_t mount_status = sd_get_mount_status();
     if (mount_status != SD_OK)
     {
-        printf("  SD card inserted, but unreadable.\n");
-        printf("  Error: %s\n", sd_error_string(mount_status));
+        printf("SD card inserted, but unreadable.\n");
+        printf("Error: %s\n", sd_error_string(mount_status));
         return;
     }
 
@@ -357,24 +365,18 @@ void sd_status()
     sd_error_t result = sd_get_total_space(&total_space);
     if (result != SD_OK)
     {
-        printf("  SD card inserted, unable to get total space.\n");
-        printf("  Error: %s\n", sd_error_string(result));
+        printf("SD card inserted, unable to get total space.\n");
+        printf("Error: %s\n", sd_error_string(result));
         return;
     }
-    printf("  SD card inserted, ready to use.\n");
+    char buffer[32];
+    sd_get_volume_name(buffer, sizeof(buffer));
+    printf("SD card inserted, ready to use.\n");
+    printf("  Volume name: %s\n", buffer[0] ? buffer : "No volume label");
+    get_str_size(buffer, sizeof(buffer), total_space);
+    printf("  Capacity: %s\n", buffer);
     bool is_sdhc = sd_is_sdhc();
-    if (is_sdhc)
-    {
-        printf("  SD card is High Capacity\n");
-    }
-    else
-    {
-        printf("  SD card is Standard Capacity\n");
-    }
-
-    char size_buffer[32];
-    get_str_size(size_buffer, sizeof(size_buffer), total_space);
-    printf("  SD card size: %s\n", size_buffer);
+    printf("  Type: %s\n", is_sdhc ? "SDHC" : "SDSC");
 }
 
 void sd_free()
@@ -394,12 +396,52 @@ void sd_free()
     }
 }
 
-void sd_dir()
+void cd(void)
+{
+    cd_dirname("/"); // Default to root directory
+}
+
+void cd_dirname(const char *dirname)
+{
+    if (dirname == NULL || strlen(dirname) == 0)
+    {
+        printf("Error: No directory specified.\n");
+        printf("Usage: cd <dirname>\n");
+        printf("Example: cd /mydir\n");
+        return;
+    }
+
+    sd_error_t result = sd_set_current_dir(dirname);
+    if (result != SD_OK)
+    {
+        printf("Error: %s\n", sd_error_string(result));
+        return;
+    }
+}
+
+void sd_pwd()
+{
+    char current_dir[MAX_PATH_LEN];
+    sd_error_t result = sd_get_current_dir(current_dir, sizeof(current_dir));
+    if (result != SD_OK)
+    {
+        printf("Error: %s\n", sd_error_string(result));
+        return;
+    }
+    printf("%s\n", current_dir);
+}
+
+void dir()
+{
+    sd_dir_dirname("."); // Show root directory
+}
+
+void sd_dir_dirname(const char *dirname)
 {
     sd_dir_t dir;
     sd_dir_entry_t dir_entry;
 
-    sd_error_t result = sd_dir_open(&dir, "/");
+    sd_error_t result = sd_dir_open(&dir, dirname);
     if (result != SD_OK)
     {
         printf("Error: %s\n", sd_error_string(result));
@@ -416,7 +458,12 @@ void sd_dir()
         }
         if (dir_entry.name[0])
         {
-            if (dir_entry.attr & ATTR_DIRECTORY)
+            if (dir_entry.attr & (ATTR_VOLUME_ID|ATTR_HIDDEN|ATTR_SYSTEM))
+            {
+                // It's a volume label, hidden file, or system file, skip it
+                continue;
+            }
+            else if (dir_entry.attr & ATTR_DIRECTORY)
             {
                 // It's a directory, append '/' to the name
                 printf("%s/\n", dir_entry.name);

@@ -9,7 +9,6 @@
 //  Standard SD cards (SDSC) and SD High Capacity (SDHC) cards are supported.
 //
 
-
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
@@ -38,8 +37,9 @@ static uint32_t volume_start_block = 0; // First block of the volume
 static uint32_t first_data_sector;      // First sector of the data region
 static uint32_t data_region_sectors;    // Total sectors in the data region
 static uint32_t cluster_count;          // Total number of clusters in the data region
-
 static uint32_t bytes_per_cluster;
+
+static uint32_t current_dir_cluster = 0; // Current directory cluster
 
 // Working buffers
 static uint8_t sector_buffer[SECTOR_SIZE] __attribute__((aligned(4)));
@@ -527,6 +527,7 @@ sd_error_t sd_mount(void)
         return SD_ERROR_INVALID_FORMAT; // This is FAT12 or FAT16, not FAT32!
     }
 
+    current_dir_cluster = boot_sector.root_cluster; // Start at root directory
     sd_mounted = true;
     return SD_OK;
 }
@@ -618,6 +619,41 @@ sd_error_t sd_get_total_space(uint64_t *total_space)
     // Calculate total space in bytes
     *total_space = total_sectors * SECTOR_SIZE;
 
+    return SD_OK;
+}
+
+sd_error_t sd_get_volume_name(char *name, size_t name_len)
+{
+    if (!name || name_len < 12)
+    {
+        return SD_ERROR_INVALID_PARAMETER; // Name buffer too small
+    }
+
+    if (!sd_is_ready())
+    {
+        return mount_status;
+    }
+
+    // Read the volume label from the root directory
+    sd_dir_t dir = {0};
+    dir.is_open = true;
+    dir.start_cluster = boot_sector.root_cluster;
+    dir.current_cluster = boot_sector.root_cluster;
+    dir.position = 0;
+
+    bool found = false;
+    sd_dir_entry_t entry;
+    while (sd_dir_read(&dir, &entry) == SD_OK && entry.name[0])
+    {
+        if (entry.attr & ATTR_VOLUME_ID)
+        {
+            // Found a volume label entry
+            strncpy(name, entry.name, name_len - 1);
+            name[name_len - 1] = '\0'; // Ensure null-termination
+            return SD_OK;
+        }
+    }
+    name[0] = '\0'; // No volume label found
     return SD_OK;
 }
 
@@ -713,32 +749,71 @@ static void lfn_entry_into_buffer(fat_lfn_entry_t *lfn_entry, char *buffer)
     *(buffer++) = utf16_to_utf8(lfn_entry->name3[1]);
 }
 
-static sd_error_t find_directory_entry(sd_dir_entry_t *dir_entry, const char *filename)
+static sd_error_t find_directory_entry(sd_dir_entry_t *dir_entry, const char *path)
 {
-    sd_dir_t dir;
-
-    sd_error_t result = sd_dir_open(&dir, "/");
-    if (result != SD_OK)
+    if (!dir_entry || !path || !*path)
     {
-        return result;
+        return SD_ERROR_INVALID_PARAMETER;
     }
 
-    do
+    // Determine starting cluster: root or current
+    uint32_t cluster = current_dir_cluster;
+    if (path[0] == '/')
     {
-        result = sd_dir_read(&dir, dir_entry);
-        if (result != SD_OK)
-        {
-            return result;
-        }
-        if (dir_entry->name[0] && strcmp(dir_entry->name, filename) == 0)
-        {
-            sd_dir_close(&dir);
-            return SD_OK; // Found the entry
-        }
-    } while (dir_entry->name[0]);
+        cluster = boot_sector.root_cluster;
+    }
 
-    sd_dir_close(&dir);
-    return SD_ERROR_FILE_NOT_FOUND; // No more entries
+    // Copy path and tokenize
+    char path_copy[MAX_PATH_LEN];
+    strncpy(path_copy, path + (path[0] == '/' ? 1 : 0), sizeof(path_copy) - 1);
+    path_copy[sizeof(path_copy) - 1] = '\0';
+
+    char *saveptr = NULL;
+    char *token = strtok_r(path_copy, "/", &saveptr);
+    char *next_token = NULL;
+
+    while (token)
+    {
+        next_token = strtok_r(NULL, "/", &saveptr);
+
+        // Open the current directory cluster
+        sd_dir_t dir = {0};
+        dir.is_open = true;
+        dir.start_cluster = cluster;
+        dir.current_cluster = cluster;
+        dir.position = 0;
+
+        bool found = false;
+        sd_dir_entry_t entry;
+        while (sd_dir_read(&dir, &entry) == SD_OK && entry.name[0])
+        {
+            if (strcasecmp(entry.name, token) == 0)
+            {
+                // If this is the last component, return the entry
+                if (!next_token)
+                {
+                    memcpy(dir_entry, &entry, sizeof(sd_dir_entry_t));
+                    sd_dir_close(&dir);
+                    return SD_OK;
+                }
+                // If not last, must be a directory
+                if (entry.attr & ATTR_DIRECTORY)
+                {
+                    cluster = entry.start_cluster ? entry.start_cluster : boot_sector.root_cluster;
+                    found = true;
+                    break;
+                }
+            }
+        }
+        sd_dir_close(&dir);
+        if (!found && next_token)
+        {
+            return SD_ERROR_INVALID_PATH; // Intermediate directory not found
+        }
+        token = next_token;
+    }
+
+    return SD_ERROR_FILE_NOT_FOUND; // Not found
 }
 
 //
@@ -764,6 +839,10 @@ sd_error_t sd_file_open(sd_file_t *file, const char *filename)
     if (result != SD_OK)
     {
         return result; // File not found or error
+    }
+    if ((entry.attr & ATTR_DIRECTORY) || (entry.attr & ATTR_VOLUME_ID))
+    {
+        return SD_ERROR_NOT_A_FILE; // Not a valid file
     }
 
     // Found the file
@@ -923,17 +1002,32 @@ sd_error_t sd_file_delete(const char *filename)
 // Directory operations (placeholder implementations)
 //
 
-sd_error_t sd_dir_open(sd_dir_t *dir, const char *path)
+sd_error_t sd_set_current_dir(const char *path)
 {
-    if (!dir || !path)
+    sd_dir_t dir;
+    sd_error_t result = sd_dir_open(&dir, path);
+    if (result != SD_OK)
     {
-        return SD_ERROR_INVALID_PARAMETER;
+        return result; // Directory not found or error
     }
 
-    // Only support root directory for now
-    if (strcmp(path, "/") != 0)
+    if (!dir.is_open)
     {
-        return SD_ERROR_INVALID_PATH;
+        return SD_ERROR_INVALID_PATH; // Directory not open
+    }
+
+    // Update current directory cluster and name
+    current_dir_cluster = dir.start_cluster;
+    sd_dir_close(&dir); // Close the directory
+
+    return SD_OK;
+}
+
+sd_error_t sd_get_current_dir(char *path, size_t path_len)
+{
+    if (!path || path_len < MAX_PATH_LEN)
+    {
+        return SD_ERROR_INVALID_PARAMETER;
     }
 
     if (!sd_is_ready())
@@ -941,14 +1035,175 @@ sd_error_t sd_dir_open(sd_dir_t *dir, const char *path)
         return mount_status;
     }
 
+    // Special case: root
+    if (current_dir_cluster == boot_sector.root_cluster)
+    {
+        strncpy(path, "/", path_len);
+        path[path_len - 1] = '\0';
+        return SD_OK;
+    }
+
+    // Walk up the tree, collecting names
+    char components[16][MAX_FILENAME_LEN + 1]; // Up to 16 levels deep
+    int depth = 0;
+    uint32_t cluster = current_dir_cluster;
+
+    while (cluster != boot_sector.root_cluster && depth < 16)
+    {
+        // Open current directory and read ".." entry to get parent cluster
+        sd_dir_t dir = {0};
+        dir.is_open = true;
+        dir.start_cluster = cluster;
+        dir.current_cluster = cluster;
+        dir.position = 0;
+
+        sd_dir_entry_t entry;
+        uint32_t parent_cluster = boot_sector.root_cluster;
+        int entry_count = 0;
+        bool found_parent = false;
+
+        // Find ".." entry (always the second entry)
+        while (sd_dir_read(&dir, &entry) == SD_OK && entry.name[0])
+        {
+            if ((entry.attr & ATTR_DIRECTORY) && strcmp(entry.name, "..") == 0)
+            {
+                parent_cluster = entry.start_cluster ? entry.start_cluster : boot_sector.root_cluster;
+                found_parent = true;
+                break;
+            }
+            entry_count++;
+            if (entry_count > 2)
+            {
+                break;
+            }
+        }
+        sd_dir_close(&dir);
+        if (!found_parent)
+        {
+            break;
+        }
+
+        // Now, open parent directory and search for this cluster's name
+        sd_dir_t parent_dir = {0};
+        parent_dir.is_open = true;
+        parent_dir.start_cluster = parent_cluster;
+        parent_dir.current_cluster = parent_cluster;
+        parent_dir.position = 0;
+
+        bool found_name = false;
+        while (sd_dir_read(&parent_dir, &entry) == SD_OK && entry.name[0])
+        {
+            if ((entry.attr & ATTR_DIRECTORY) && entry.start_cluster == cluster &&
+                strcmp(entry.name, ".") != 0 && strcmp(entry.name, "..") != 0)
+            {
+                strncpy(components[depth], entry.name, MAX_FILENAME_LEN);
+                components[depth][MAX_FILENAME_LEN] = '\0';
+                found_name = true;
+                break;
+            }
+        }
+        sd_dir_close(&parent_dir);
+        if (!found_name)
+        {
+            break;
+        }
+        cluster = parent_cluster;
+        depth++;
+    }
+
+    // Build the path string
+    path[0] = '\0';
+    for (int i = depth - 1; i >= 0; i--)
+    {
+        strncat(path, "/", path_len - strlen(path) - 1);
+        strncat(path, components[i], path_len - strlen(path) - 1);
+    }
+    if (path[0] == '\0')
+    {
+        strncpy(path, "/", path_len);
+    }
+
+    return SD_OK;
+}
+
+sd_error_t sd_dir_open(sd_dir_t *dir, const char *path)
+{
+    if (!dir || !path)
+    {
+        return SD_ERROR_INVALID_PARAMETER;
+    }
+
+    if (!sd_is_ready())
+    {
+        return mount_status;
+    }
+
+    if (strlen(path) > MAX_PATH_LEN)
+    {
+        return SD_ERROR_INVALID_PATH; // Path too long
+    }
+
     memset(dir, 0, sizeof(sd_dir_t));
 
-    // Initialise directory structure
-    dir->is_open = true;
-    dir->start_cluster = boot_sector.root_cluster;
-    dir->current_cluster = dir->start_cluster;
-    dir->position = 0;
+    // Start at root
+    uint32_t cluster = current_dir_cluster;
 
+    // If the path is empty, or refers to the current or parent directory of the root directory
+    if (path[0] == '\0' || ((strcmp(path, ".") == 0 || strcmp(path, "..") == 0) &&
+                            current_dir_cluster == boot_sector.root_cluster))
+    {
+        // Special case: current directory or parent directory of the root directory
+        dir->is_open = true;
+        dir->start_cluster = current_dir_cluster;
+        dir->current_cluster = current_dir_cluster;
+        dir->position = 0;
+        return SD_OK;
+    }
+
+    // If the path is absolute, start from root cluster
+    if (path[0] == '/')
+    {
+        cluster = boot_sector.root_cluster;
+    }
+
+    // Parse path components
+    char path_copy[MAX_PATH_LEN];
+    strncpy(path_copy, path + (path[0] == '/' ? 1 : 0), sizeof(path_copy) - 1); // Skip leading slash
+    path_copy[sizeof(path_copy) - 1] = '\0';
+
+    char *saveptr = NULL;
+    char *token = strtok_r(path_copy, "/", &saveptr);
+    while (token)
+    {
+        // Search for this directory entry in the current cluster
+        sd_dir_t temp_dir = {0};
+        temp_dir.is_open = true;
+        temp_dir.start_cluster = cluster;
+        temp_dir.current_cluster = cluster;
+        temp_dir.position = 0;
+
+        sd_dir_entry_t entry;
+        bool found = false;
+        while (sd_dir_read(&temp_dir, &entry) == SD_OK && entry.name[0])
+        {
+            if ((entry.attr & ATTR_DIRECTORY) && strcasecmp(entry.name, token) == 0)
+            {
+                cluster = entry.start_cluster ? entry.start_cluster : boot_sector.root_cluster;
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+        {
+            return SD_ERROR_INVALID_PATH;
+        }
+        token = strtok_r(NULL, "/", &saveptr);
+    }
+
+    dir->is_open = true;
+    dir->start_cluster = cluster;
+    dir->current_cluster = cluster;
+    dir->position = 0;
     return SD_OK;
 }
 
@@ -1028,7 +1283,7 @@ sd_error_t sd_dir_read(sd_dir_t *dir, sd_dir_entry_t *dir_entry)
                 lfn_entry_into_buffer(lfn_entry, long_filename + offset);
             }
         }
-        else if ((entry->attr & 0x0E) == 0 && entry->name[0] != DIR_ENTRY_FREE)
+        else if (entry->name[0] != DIR_ENTRY_FREE)
         {
             uint8_t checksum = lfn_checksum(entry->name);
             // Now check to see if this is the entry we are looking for
@@ -1062,7 +1317,7 @@ sd_error_t sd_dir_read(sd_dir_t *dir, sd_dir_entry_t *dir_entry)
             {
                 // End of cluster chain
                 dir->last_entry_read = true; // Mark that we reached the end
-                return SD_OK; // No more entries to read
+                return SD_OK;                // No more entries to read
             }
             dir->current_cluster = next_cluster;
         }
@@ -1117,6 +1372,14 @@ const char *sd_error_string(sd_error_t error)
         return "File not found";
     case SD_ERROR_INVALID_PATH:
         return "Invalid path";
+    case SD_ERROR_NOT_A_DIRECTORY:
+        return "Not a directory";
+    case SD_ERROR_NOT_A_FILE:
+        return "Not a file";
+    case SD_ERROR_DIR_NOT_EMPTY:
+        return "Directory not empty";
+    case SD_ERROR_DIR_NOT_FOUND:
+        return "Directory not found";
     case SD_ERROR_DISK_FULL:
         return "Disk full";
     case SD_ERROR_FILE_EXISTS:
@@ -1261,9 +1524,9 @@ bool on_sd_card_detect(repeating_timer_t *rt)
     // Check if SD card is present
     if (!sd_card_present() && sd_is_mounted())
     {
-        sd_unmount(); // Unmount if card is not present
+        sd_unmount();    // Unmount if card is not present
         delay_count = 2; // Reset retry count
-        return true;  // Continue timer
+        return true;     // Continue timer
     }
 
     if (sd_card_present() && delay_count > 0)

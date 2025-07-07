@@ -51,7 +51,7 @@
 // FAT32 constants
 #define SECTOR_SIZE (512)
 #define MAX_FILENAME_LEN (255)
-#define MAX_PATH_LEN (512)
+#define MAX_PATH_LEN (260)
 
 // File attributes
 #define ATTR_READ_ONLY (0x01)
@@ -79,6 +79,10 @@ typedef enum
     SD_ERROR_NOT_MOUNTED,
     SD_ERROR_FILE_NOT_FOUND,
     SD_ERROR_INVALID_PATH,
+    SD_ERROR_NOT_A_DIRECTORY,
+    SD_ERROR_NOT_A_FILE,
+    SD_ERROR_DIR_NOT_EMPTY,
+    SD_ERROR_DIR_NOT_FOUND,
     SD_ERROR_DISK_FULL,
     SD_ERROR_FILE_EXISTS,
     SD_ERROR_INVALID_PARAMETER,
@@ -221,6 +225,7 @@ bool sd_is_sdhc(void);
 sd_error_t sd_get_mount_status(void);
 sd_error_t sd_get_free_space(uint64_t *free_space);
 sd_error_t sd_get_total_space(uint64_t *total_space);
+sd_error_t sd_get_volume_name(char *name, size_t name_len);
 
 // File operations
 sd_error_t sd_file_open(sd_file_t *file, const char *filename);
@@ -235,6 +240,8 @@ bool sd_file_eof(sd_file_t *file);
 sd_error_t sd_file_delete(const char *filename);
 
 // Directory operations
+sd_error_t sd_set_current_dir(const char *path);
+sd_error_t sd_get_current_dir(char *path, size_t path_len);
 sd_error_t sd_dir_open(sd_dir_t *dir, const char *path);
 sd_error_t sd_dir_read(sd_dir_t *dir, sd_dir_entry_t *entry);
 sd_error_t sd_dir_close(sd_dir_t *dir);
