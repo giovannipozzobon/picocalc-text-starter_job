@@ -207,9 +207,6 @@ typedef struct
 // Low-level SD card functions
 bool sd_card_present(void);
 void sd_init(void);
-bool sd_available(void);
-void sd_acquire(void);
-void sd_release(void);
 
 // Block-level read/write functions
 sd_error_t sd_read_block(uint32_t block, uint8_t *buffer);
