@@ -5,6 +5,8 @@
 //  can also control the LED on the CYW43 Wi-Fi chip if needed.
 //
 
+#include "pico/stdlib.h"
+
 #ifndef PICO_DEFAULT_LED_PIN
 #include "pico/cyw43_arch.h"
 #endif
