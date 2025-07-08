@@ -105,6 +105,7 @@ Documentation for the high-level drivers. These drivers use low-level drivers to
 - [PicoCalc](docs/picocalc.md) – pseudo driver configures the southbridge, display and keyboard drivers
 - [Display](docs/display.md) – emulates an ANSI terminal
 - [Keyboard](docs/keyboard.md) – uses a timer loop that polls the PicoCalc's southbridge for key presses
+- [FAT32](docs/fat32.md) – read from an SD card formatted with FAT32
 
 
 # Low-Level Drivers
@@ -114,5 +115,6 @@ Documentation for the low-level drivers. These drivers talk directly to the hard
 - [Audio](docs/audio.md) – simple audio driver can play stereo notes
 - [LCD](docs/lcd.md) – driver for the LCD display that is optimised for displaying text
 - [On-board LED](docs/onboard_led.md) – controls the on-board LED
+- [SD Card](docs/sdcard.md) – driver that allows file systems to talk to the SD card
 - [Serial](docs/serial.md) – driver for the USB C serial port
 - [Southbridge](docs/southbridge.md) – interfaces to the low-speed devices (keyboard, backlight, battery)

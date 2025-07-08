@@ -48,6 +48,8 @@ add_executable(picocalc-text-starter
         drivers/audio.h
         drivers/display.c
         drivers/display.h
+        drivers/fat32.c
+        drivers/fat32.h
         drivers/font.c
         drivers/font.h
         drivers/keyboard.c

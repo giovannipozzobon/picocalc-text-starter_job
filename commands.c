@@ -10,6 +10,7 @@
 #include "drivers/southbridge.h"
 #include "drivers/audio.h"
 #include "drivers/sdcard.h"
+#include "drivers/fat32.h"
 #include "songs.h"
 #include "tests.h"
 #include "commands.h"
@@ -353,7 +354,7 @@ void sd_status()
         return;
     }
 
-    sd_error_t mount_status = sd_get_mount_status();
+    sd_error_t mount_status = fat32_get_status();
     if (mount_status != SD_OK)
     {
         printf("SD card inserted, but unreadable.\n");
@@ -362,7 +363,7 @@ void sd_status()
     }
 
     uint64_t total_space;
-    sd_error_t result = sd_get_total_space(&total_space);
+    sd_error_t result = fat32_get_total_space(&total_space);
     if (result != SD_OK)
     {
         printf("SD card inserted, unable to get total space.\n");
@@ -370,7 +371,7 @@ void sd_status()
         return;
     }
     char buffer[32];
-    sd_get_volume_name(buffer, sizeof(buffer));
+    fat32_get_volume_name(buffer, sizeof(buffer));
     printf("SD card inserted, ready to use.\n");
     printf("  Volume name: %s\n", buffer[0] ? buffer : "No volume label");
     get_str_size(buffer, sizeof(buffer), total_space);
@@ -382,7 +383,7 @@ void sd_status()
 void sd_free()
 {
     uint64_t free_space;
-    sd_error_t result = sd_get_free_space(&free_space);
+    sd_error_t result = fat32_get_free_space(&free_space);
 
     if (result == SD_OK)
     {
@@ -411,7 +412,7 @@ void cd_dirname(const char *dirname)
         return;
     }
 
-    sd_error_t result = sd_set_current_dir(dirname);
+    sd_error_t result = fat32_set_current_dir(dirname);
     if (result != SD_OK)
     {
         printf("Error: %s\n", sd_error_string(result));
@@ -421,8 +422,8 @@ void cd_dirname(const char *dirname)
 
 void sd_pwd()
 {
-    char current_dir[MAX_PATH_LEN];
-    sd_error_t result = sd_get_current_dir(current_dir, sizeof(current_dir));
+    char current_dir[FAT32_MAX_PATH_LEN];
+    sd_error_t result = fat32_get_current_dir(current_dir, sizeof(current_dir));
     if (result != SD_OK)
     {
         printf("Error: %s\n", sd_error_string(result));
@@ -438,10 +439,10 @@ void dir()
 
 void sd_dir_dirname(const char *dirname)
 {
-    sd_dir_t dir;
-    sd_dir_entry_t dir_entry;
+    fat32_dir_t dir;
+    fat32_entry_t dir_entry;
 
-    sd_error_t result = sd_dir_open(&dir, dirname);
+    fat32_error_t result = fat32_dir_open(&dir, dirname);
     if (result != SD_OK)
     {
         printf("Error: %s\n", sd_error_string(result));
@@ -450,7 +451,7 @@ void sd_dir_dirname(const char *dirname)
 
     do
     {
-        result = sd_dir_read(&dir, &dir_entry);
+        result = fat32_dir_read(&dir, &dir_entry);
         if (result != SD_OK)
         {
             printf("Error: %s\n", sd_error_string(result));
@@ -458,12 +459,12 @@ void sd_dir_dirname(const char *dirname)
         }
         if (dir_entry.name[0])
         {
-            if (dir_entry.attr & (ATTR_VOLUME_ID|ATTR_HIDDEN|ATTR_SYSTEM))
+            if (dir_entry.attr & (FAT32_ATTR_VOLUME_ID|FAT32_ATTR_HIDDEN|FAT32_ATTR_SYSTEM))
             {
                 // It's a volume label, hidden file, or system file, skip it
                 continue;
             }
-            else if (dir_entry.attr & ATTR_DIRECTORY)
+            else if (dir_entry.attr & FAT32_ATTR_DIRECTORY)
             {
                 // It's a directory, append '/' to the name
                 printf("%s/\n", dir_entry.name);
@@ -477,7 +478,7 @@ void sd_dir_dirname(const char *dirname)
         }
     } while (dir_entry.name[0]);
 
-    sd_dir_close(&dir);
+    fat32_dir_close(&dir);
 }
 
 void sd_more()
@@ -497,11 +498,11 @@ void sd_read_filename(const char *filename)
         return;
     }
 
-    sd_file_t file;
-    sd_error_t result = sd_file_open(&file, filename);
+    fat32_file_t file;
+    fat32_error_t result = fat32_file_open(&file, filename);
     if (result != SD_OK)
     {
-        printf("Error: %s\n", sd_error_string(result));
+        printf("Error: %s\n", fat32_error_string(result));
         return;
     }
 
@@ -514,9 +515,9 @@ void sd_read_filename(const char *filename)
 
     printf("\033[2J\033[H");
 
-    while (!user_quit && total_bytes_read < sd_file_size(&file))
+    while (!user_quit && total_bytes_read < fat32_file_size(&file))
     {
-        result = sd_file_read(&file, buffer, sizeof(buffer) - 1, &bytes_read);
+        result = fat32_file_read(&file, buffer, sizeof(buffer) - 1, &bytes_read);
         if (result != SD_OK || bytes_read == 0)
         {
             if (result != SD_OK)
@@ -574,5 +575,5 @@ void sd_read_filename(const char *filename)
             break;
     }
 
-    sd_file_close(&file);
+    fat32_file_close(&file);
 }
