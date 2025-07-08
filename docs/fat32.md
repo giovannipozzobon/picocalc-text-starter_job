@@ -55,6 +55,7 @@ Returns FAT32_OK if successful, otherwise an error code is returned.
 
 - free_space – the target to store the the 64-bit value
 
+
 ## fat32_get_total_space
 
 `fat32_error_t fat32_get_total_space(uint64_t *total_space)`
@@ -84,9 +85,9 @@ Returns FAT32_OK if successful, otherwise an error code is returned.
 
 ## fat32_file_open
 
-`fat32_error_t fat32_file_open(fat32_file_t *file, const char *pathname)`
+`fat32_error_t fat32_file_open(fat32_file_t *file, const char *path)`
 
-Opens a file specified by the pathname and populates a `fat32-File_t`.
+Opens a file specified by the path and populates a `fat32-File_t`.
 
 Returns FAT32_OK if successful, otherwise an error code is returned.
 
@@ -98,11 +99,16 @@ Returns FAT32_OK if successful, otherwise an error code is returned.
 
 ## fat32_file_create
 
-`fat32_error_t fat32_file_create(fat32_file_t *file, const char *pathname)`
+`fat32_error_t fat32_file_create(fat32_file_t *file, const char *path)`
 
 Creates a new file specified by the pathname and populates a `fat32_file_t`.
 
 Returns FAT32_OK if successful, otherwise an error code is returned.
+
+### Parameters
+
+- file - the `fat32_file_t` representing the new file
+- path – the path to the file to create
 
 
 ## fat32_file_close
@@ -142,6 +148,13 @@ Writes data to the opened file from the provided buffer.
 
 Returns FAT32_OK if successful, otherwise an error code is returned.
 
+### Parameters
+
+- file - the `fat32_file_t` representing the open file
+- buffer – the buffer containing the data to write (must be at least size in length)
+- size - the number of bytes to write from the buffer
+
+
 ## fat32_file_seek
 
 `fat32_error_t fat32_file_seek(fat32_file_t *file, uint32_t position)`
@@ -154,6 +167,7 @@ Returns FAT32_OK if successful, otherwise an error code is returned.
 
 - file - the `fat32_file_t` representing the open file
 - position – the position in the file to seek to (0 is the start of the file)
+
 
 ## fat32_file_tell
 
@@ -176,6 +190,7 @@ Returns the size of the file in bytes.
 
 - file - the `fat32_file_t` representing the open file
 
+
 ## fat32_file_eof
 
 `bool fat32_file_eof(fat32_file_t *file)`
@@ -189,28 +204,28 @@ Returns true if the end of the file has been reached.
 
 ## fat32_file_delete
 
-`fat32_error_t fat32_file_delete(const char *pathname)`
+`fat32_error_t fat32_file_delete(const char *path)`
 
-Deletes a file specified by the pathname.
+Deletes a file specified by the path.
 
 Returns FAT32_OK if successful, otherwise an error code is returned.
 
 ### Parameters
 
-- pathname – the name of the file to delete
+- path – the path to the file to delete
 
 
 ## fat32_set_current_dir
 
-`fat32_error_t fat32_set_current_dir(const char *pathname)`
+`fat32_error_t fat32_set_current_dir(const char *path)`
 
-Sets the current directory to the specified pathname.
+Sets the current directory to the specified path.
 
 Returns FAT32_OK if successful, otherwise an error code is returned.
 
 ### Parameters
 
-- pathname – the path to the directory to set as current
+- path – the path to the directory to set as current
 
 
 ## fat32_get_current_dir
@@ -229,16 +244,16 @@ Returns FAT32_OK if successful, otherwise an error code is returned.
 
 ## fat32_dir_open
 
-`fat32_error_t fat32_dir_open(fat32_dir_t *dir, const char *pathname)`
+`fat32_error_t fat32_dir_open(fat32_dir_t *dir, const char *path)`
 
-Opens a directory specified by the pathname and populates a `fat32_dir_t`.
+Opens a directory specified by the path and populates a `fat32_dir_t`.
 
 Returns FAT32_OK if successful, otherwise an error code is returned.
 
 ### Parameters
 
 - dir - the `fat32_dir_t` representing the open directory
-- pathname – the path to the directory to open
+- path – the path to the directory to open
 
 
 ## fat32_dir_read
@@ -256,6 +271,7 @@ Returns FAT32_OK if successful, otherwise an error code is returned.
 
 
 ## fat32_dir_close
+
 `fat32_error_t fat32_dir_close(fat32_dir_t *dir)`
 
 Closes the opened directory.
@@ -269,30 +285,30 @@ Returns FAT32_OK if successful, otherwise an error code is returned.
 
 ## fat32_dir_create
 
-`fat32_error_t fat32_dir_create(fat32_dir_t *dir, const char *dirname)`
+`fat32_error_t fat32_dir_create(fat32_dir_t *dir, const char *path)`
 
-Creates a new directory specified by the pathname and populates a `fat32_dir_t`.
+Creates a new directory specified by the path and populates a `fat32_dir_t`.
 
 Returns FAT32_OK if successful, otherwise an error code is returned.
 
 ### Parameters
 
 - dir - the `fat32_dir_t` representing the new directory
-- dirname – the name of the directory to create
+- path – the path to the directory to create
 
 
 ## fat32_dir_delete
 
-`fat32_error_t fat32_dir_delete(fat32_dir_t *dir, const char *dirname)`
+`fat32_error_t fat32_dir_delete(fat32_dir_t *dir, const char *path)`
 
-Deletes a directory specified by the pathname.
+Deletes a directory specified by the path.
 
 Returns FAT32_OK if successful, otherwise an error code is returned.
 
 ### Parameters
 
 - dir - the `fat32_dir_t` representing the directory to delete
-- dirname – the name of the directory to delete
+- path – the path to the directory to delete
 
 
 ## fat32_error_string
