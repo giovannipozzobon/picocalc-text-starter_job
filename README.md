@@ -14,8 +14,8 @@ This starter includes drivers for:
 - Keyboard
 - Pico onboard LED (WiFi-option aware)
 - Serial port
-- SD Card
-- Southbridge functions (battery, backlights)
+- SD Card (read only)
+- Southbridge functions (keyboard, battery, backlights)
 
 This starter does not contain the best-of-bread drivers for each component, but rather enough capability to get **your project "started" fast**.
 
@@ -57,11 +57,14 @@ If you are using a third-party board with WiFi you will also need to add that bo
 
 # Demo REPL
 
-The main entry point for this starter is a simple REPL to run demos and tests of the drivers and the functioning of your PicoCalc.
+The main entry point for this starter is a simple REPL to run demos and tests of the drivers and the functioning of your PicoCalc. 
+
+> [!NOTE]
+> The REPL is provided only for the demonstration of this library. You will discard and replace the REPL with your project.
 
 ## Commands
 
-The main function implements a simple REPL to demonstrate different cababilities of this starter project:
+These commands provide examples of how to use the drivers:
 
 - **backlight** - Displays the backlight values for the display and keyboard
 - **battery** – Displays the battery level and status (graphically)
@@ -69,7 +72,13 @@ The main function implements a simple REPL to demonstrate different cababilities
 - **box** – Draws a yellow box using special graphics characters
 - **bye** – Reboots the device into BOOTSEL mode
 - **cls** – Clears the display
+- **cd** – Change the current directory
+- **dir** – Display the contents of the current directory
+- **free** – Shows the free space remaining on the SD card
+- **more** – Display the contents of a file
 - **play** – Play a named song (use 'songs' for a list of available songs)
+- **pwd** – Displays the current directory
+- **sdcard** – Provides information about the inserted SD card
 - **songs** – List all available songs
 - **test** – Run a named test (use 'tests' for a list of available tests)
 - **tests** – List all available tests
