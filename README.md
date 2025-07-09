@@ -14,7 +14,8 @@ This starter includes drivers for:
 - Keyboard
 - Pico onboard LED (WiFi-option aware)
 - Serial port
-- Southbridge functions (battery, backlights)
+- SD Card (read only)
+- Southbridge functions (keyboard, battery, backlights)
 
 This starter does not contain the best-of-bread drivers for each component, but rather enough capability to get **your project "started" fast**.
 
@@ -56,11 +57,14 @@ If you are using a third-party board with WiFi you will also need to add that bo
 
 # Demo REPL
 
-The main entry point for this starter is a simple REPL to run demos and tests of the drivers and the functioning of your PicoCalc.
+The main entry point for this starter is a simple REPL to run demos and tests of the drivers and the functioning of your PicoCalc. 
+
+> [!NOTE]
+> The REPL is provided only for the demonstration of this library. You will discard and replace the REPL with your project.
 
 ## Commands
 
-The main function implements a simple REPL to demonstrate different cababilities of this starter project:
+These commands provide examples of how to use the drivers:
 
 - **backlight** - Displays the backlight values for the display and keyboard
 - **battery** – Displays the battery level and status (graphically)
@@ -68,7 +72,13 @@ The main function implements a simple REPL to demonstrate different cababilities
 - **box** – Draws a yellow box using special graphics characters
 - **bye** – Reboots the device into BOOTSEL mode
 - **cls** – Clears the display
+- **cd** – Change the current directory
+- **dir** – Display the contents of the current directory
+- **free** – Shows the free space remaining on the SD card
+- **more** – Display the contents of a file
 - **play** – Play a named song (use 'songs' for a list of available songs)
+- **pwd** – Displays the current directory
+- **sdcard** – Provides information about the inserted SD card
 - **songs** – List all available songs
 - **test** – Run a named test (use 'tests' for a list of available tests)
 - **tests** – List all available tests
@@ -104,6 +114,7 @@ Documentation for the high-level drivers. These drivers use low-level drivers to
 - [PicoCalc](docs/picocalc.md) – pseudo driver configures the southbridge, display and keyboard drivers
 - [Display](docs/display.md) – emulates an ANSI terminal
 - [Keyboard](docs/keyboard.md) – uses a timer loop that polls the PicoCalc's southbridge for key presses
+- [FAT32](docs/fat32.md) – read from an SD card formatted with FAT32
 
 
 # Low-Level Drivers
@@ -113,5 +124,6 @@ Documentation for the low-level drivers. These drivers talk directly to the hard
 - [Audio](docs/audio.md) – simple audio driver can play stereo notes
 - [LCD](docs/lcd.md) – driver for the LCD display that is optimised for displaying text
 - [On-board LED](docs/onboard_led.md) – controls the on-board LED
+- [SD Card](docs/sdcard.md) – driver that allows file systems to talk to the SD card
 - [Serial](docs/serial.md) – driver for the USB C serial port
 - [Southbridge](docs/southbridge.md) – interfaces to the low-speed devices (keyboard, backlight, battery)

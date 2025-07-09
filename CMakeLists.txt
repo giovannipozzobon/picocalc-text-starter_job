@@ -48,6 +48,8 @@ add_executable(picocalc-text-starter
         drivers/audio.h
         drivers/display.c
         drivers/display.h
+        drivers/fat32.c
+        drivers/fat32.h
         drivers/font.c
         drivers/font.h
         drivers/keyboard.c
@@ -58,12 +60,14 @@ add_executable(picocalc-text-starter
         drivers/onboard_led.h
         drivers/picocalc.c
         drivers/picocalc.h
+        drivers/sdcard.c
+        drivers/sdcard.h
         drivers/southbridge.c
         drivers/southbridge.h
         )
 
 pico_set_program_name(picocalc-text-starter "picocalc-text-starter")
-pico_set_program_version(picocalc-text-starter "0.1")
+pico_set_program_version(picocalc-text-starter "0.2")
 
 # Generate PIO header
 pico_generate_pio_header(picocalc-text-starter ${CMAKE_CURRENT_LIST_DIR}/drivers/audio.pio)

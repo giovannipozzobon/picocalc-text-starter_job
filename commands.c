@@ -9,6 +9,8 @@
 
 #include "drivers/southbridge.h"
 #include "drivers/audio.h"
+#include "drivers/sdcard.h"
+#include "drivers/fat32.h"
 #include "songs.h"
 #include "tests.h"
 #include "commands.h"
@@ -23,11 +25,17 @@ static const command_t commands[] = {
     {"box", box, "Draw a box on the screen"},
     {"bye", bye, "Reboot into BOOTSEL mode"},
     {"cls", clearscreen, "Clear the screen"},
+    {"cd", cd, "Change directory"},
+    {"dir", dir, "List files on SD card"},
+    {"free", sd_free, "Show free space on SD card"},
+    {"more", sd_more, "Page through a file"},
     {"play", play, "Play a song"},
+    {"pwd", sd_pwd, "Print working directory"},
+    {"sdcard", sd_status, "Show SD card status"},
     {"songs", show_song_library, "Show song library"},
     {"test", test, "Run a test"},
     {"tests", show_test_library, "Show test library"},
-    {"help", help, "Show this help message"},
+    {"help", show_command_library, "Show this help message"},
     {NULL, NULL, NULL} // Sentinel to mark end of array
 };
 
@@ -60,7 +68,7 @@ static void play_named_song(const char *song_name)
     }
 }
 
-static void run_named_test(const char * test_name)
+static void run_named_test(const char *test_name)
 {
     const test_t *test = find_test(test_name);
     if (!test)
@@ -74,7 +82,7 @@ static void run_named_test(const char * test_name)
     printf("Press BREAK key to stop...\n");
 
     // Reset user interrupt flag
-    user_interrupt = false; 
+    user_interrupt = false;
     test->function(); // Call the test function
 
     if (user_interrupt)
@@ -85,7 +93,6 @@ static void run_named_test(const char * test_name)
     {
         printf("\nTest finished!\n");
     }
-
 }
 
 void run_command(const char *command)
@@ -98,10 +105,21 @@ void run_command(const char *command)
     cmd_copy[sizeof(cmd_copy) - 1] = '\0';
 
     // Parse command and arguments
-    char *cmd_name = strtok(cmd_copy, " ");
-    char *cmd_arg = strtok(NULL, " ");
+    char *cmd_name = cmd_copy;
+    char *cmd_arg = NULL;
+    char *space = strchr(cmd_copy, ' ');
+    if (space)
+    {
+        *space = '\0'; // Terminate cmd_name
+        cmd_arg = space + 1;
+        // Skip any leading spaces in cmd_arg
+        while (*cmd_arg == ' ')
+            cmd_arg++;
+        if (*cmd_arg == '\0')
+            cmd_arg = NULL;
+    }
 
-    if (!cmd_name)
+    if (!cmd_name || *cmd_name == '\0')
     {
         return; // Empty command
     }
@@ -116,9 +134,21 @@ void run_command(const char *command)
             {
                 play_named_song(cmd_arg);
             }
+            else if (strcmp(cmd_name, "more") == 0 && cmd_arg != NULL)
+            {
+                sd_read_filename(cmd_arg);
+            }
             else if (strcmp(cmd_name, "test") == 0 && cmd_arg != NULL)
             {
                 run_named_test(cmd_arg);
+            }
+            else if (strcmp(cmd_name, "dir") == 0 && cmd_arg != NULL)
+            {
+                sd_dir_dirname(cmd_arg);
+            }
+            else if (strcmp(cmd_name, "cd") == 0 && cmd_arg != NULL)
+            {
+                cd_dirname(cmd_arg);
             }
             else
             {
@@ -136,9 +166,9 @@ void run_command(const char *command)
     user_interrupt = false;
 }
 
-void help()
+void show_command_library()
 {
-    printf("Available commands:\n");
+    printf("Command Library:\n\n");
     for (int i = 0; commands[i].name != NULL; i++)
     {
         printf("  %s - %s\n", commands[i].name, commands[i].description);
@@ -279,4 +309,271 @@ void test()
     printf("Error: No test specified.\n");
     printf("Usage: test <name>\n");
     printf("Use 'tests' command to see available\ntests.\n");
+}
+
+//
+// SD Card Commands
+//
+
+static void get_str_size(char *buffer, uint32_t buffer_size, uint64_t bytes)
+{
+    const char *unit = "bytes";
+    uint32_t divisor = 1;
+
+    if (bytes >= 1000 * 1000 * 1000)
+    {
+        divisor = 1000 * 1000 * 1000;
+        unit = "GB";
+    }
+    else if (bytes >= 1000 * 1000)
+    {
+        divisor = 1000 * 1000;
+        unit = "MB";
+    }
+    else if (bytes >= 1000)
+    {
+        divisor = 1000;
+        unit = "KB";
+    }
+
+    if (unit == "bytes" || unit == "KB")
+    {
+        snprintf(buffer, buffer_size, "%llu %s", (unsigned long long)(bytes / divisor), unit);
+    }
+    else
+    {
+        snprintf(buffer, buffer_size, "%.1f %s", ((float)bytes) / divisor, unit);
+    }
+}
+
+void sd_status()
+{
+    if (!sd_card_present())
+    {
+        printf("SD card not inserted\n");
+        return;
+    }
+
+    sd_error_t mount_status = fat32_get_status();
+    if (mount_status != SD_OK)
+    {
+        printf("SD card inserted, but unreadable.\n");
+        printf("Error: %s\n", sd_error_string(mount_status));
+        return;
+    }
+
+    uint64_t total_space;
+    sd_error_t result = fat32_get_total_space(&total_space);
+    if (result != SD_OK)
+    {
+        printf("SD card inserted, unable to get total space.\n");
+        printf("Error: %s\n", sd_error_string(result));
+        return;
+    }
+    char buffer[32];
+    fat32_get_volume_name(buffer, sizeof(buffer));
+    printf("SD card inserted, ready to use.\n");
+    printf("  Volume name: %s\n", buffer[0] ? buffer : "No volume label");
+    get_str_size(buffer, sizeof(buffer), total_space);
+    printf("  Capacity: %s\n", buffer);
+    bool is_sdhc = sd_is_sdhc();
+    printf("  Type: %s\n", is_sdhc ? "SDHC" : "SDSC");
+}
+
+void sd_free()
+{
+    uint64_t free_space;
+    sd_error_t result = fat32_get_free_space(&free_space);
+
+    if (result == SD_OK)
+    {
+        char size_buffer[32];
+        get_str_size(size_buffer, sizeof(size_buffer), free_space);
+        printf("Free space on SD card: %s\n", size_buffer);
+    }
+    else
+    {
+        printf("Error: %s\n", sd_error_string(result));
+    }
+}
+
+void cd(void)
+{
+    cd_dirname("/"); // Default to root directory
+}
+
+void cd_dirname(const char *dirname)
+{
+    if (dirname == NULL || strlen(dirname) == 0)
+    {
+        printf("Error: No directory specified.\n");
+        printf("Usage: cd <dirname>\n");
+        printf("Example: cd /mydir\n");
+        return;
+    }
+
+    sd_error_t result = fat32_set_current_dir(dirname);
+    if (result != SD_OK)
+    {
+        printf("Error: %s\n", sd_error_string(result));
+        return;
+    }
+}
+
+void sd_pwd()
+{
+    char current_dir[FAT32_MAX_PATH_LEN];
+    sd_error_t result = fat32_get_current_dir(current_dir, sizeof(current_dir));
+    if (result != SD_OK)
+    {
+        printf("Error: %s\n", sd_error_string(result));
+        return;
+    }
+    printf("%s\n", current_dir);
+}
+
+void dir()
+{
+    sd_dir_dirname("."); // Show root directory
+}
+
+void sd_dir_dirname(const char *dirname)
+{
+    fat32_dir_t dir;
+    fat32_entry_t dir_entry;
+
+    fat32_error_t result = fat32_dir_open(&dir, dirname);
+    if (result != SD_OK)
+    {
+        printf("Error: %s\n", sd_error_string(result));
+        return;
+    }
+
+    do
+    {
+        result = fat32_dir_read(&dir, &dir_entry);
+        if (result != SD_OK)
+        {
+            printf("Error: %s\n", sd_error_string(result));
+            return;
+        }
+        if (dir_entry.name[0])
+        {
+            if (dir_entry.attr & (FAT32_ATTR_VOLUME_ID|FAT32_ATTR_HIDDEN|FAT32_ATTR_SYSTEM))
+            {
+                // It's a volume label, hidden file, or system file, skip it
+                continue;
+            }
+            else if (dir_entry.attr & FAT32_ATTR_DIRECTORY)
+            {
+                // It's a directory, append '/' to the name
+                printf("%s/\n", dir_entry.name);
+            }
+            else
+            {
+                char size_buffer[16];
+                get_str_size(size_buffer, sizeof(size_buffer), dir_entry.size);
+                printf("%-28s %10s\n", dir_entry.name, size_buffer);
+            }
+        }
+    } while (dir_entry.name[0]);
+
+    fat32_dir_close(&dir);
+}
+
+void sd_more()
+{
+    printf("Error: No filename specified.\n");
+    printf("Usage: more <filename>\n");
+    printf("Example: more readme.txt\n");
+}
+
+void sd_read_filename(const char *filename)
+{
+    if (filename == NULL || strlen(filename) == 0)
+    {
+        printf("Error: No filename specified.\n");
+        printf("Usage: sd_read <filename>\n");
+        printf("Example: sd_read readme.txt\n");
+        return;
+    }
+
+    fat32_file_t file;
+    fat32_error_t result = fat32_file_open(&file, filename);
+    if (result != SD_OK)
+    {
+        printf("Error: %s\n", fat32_error_string(result));
+        return;
+    }
+
+    // Read and display the file content with pagination
+    char buffer[1024]; // Read in larger chunks
+    size_t bytes_read;
+    uint32_t total_bytes_read = 0;
+    int line_count = 0;
+    bool user_quit = false;
+
+    printf("\033[2J\033[H");
+
+    while (!user_quit && total_bytes_read < fat32_file_size(&file))
+    {
+        result = fat32_file_read(&file, buffer, sizeof(buffer) - 1, &bytes_read);
+        if (result != SD_OK || bytes_read == 0)
+        {
+            if (result != SD_OK)
+            {
+                printf("Error: %s\n", sd_error_string(result));
+            }
+            break;
+        }
+
+        buffer[bytes_read] = '\0'; // Null terminate
+        total_bytes_read += bytes_read;
+
+        // Display the content line by line
+        char *line_start = buffer;
+        char *line_end;
+
+        while ((line_end = strchr(line_start, '\n')) != NULL || line_start < buffer + bytes_read)
+        {
+            if (line_end == NULL)
+            {
+                // Last line without newline
+                printf("%s", line_start);
+                break;
+            }
+
+            // Print the line (including newline)
+            *line_end = '\0';
+            printf("%s\n", line_start);
+            size_t line_len = strlen(line_start);
+            int screen_lines = (int)((line_len + 40) / 40); // Round up
+            if (screen_lines == 0)
+            {
+                screen_lines = 1;
+            }
+            line_count += screen_lines;
+            // Check if we need to pause
+            if (line_count > 30)
+            {
+                printf("More?");
+                char ch = getchar();
+                if (ch == 'q' || ch == 'Q')
+                {
+                    user_quit = true;
+                    printf("\n");
+                    break;
+                }
+                printf("\033[2J\033[H");
+                line_count = 0;
+            }
+
+            line_start = line_end + 1;
+        }
+
+        if (user_quit)
+            break;
+    }
+
+    fat32_file_close(&file);
 }
