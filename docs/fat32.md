@@ -3,7 +3,7 @@
 The FAT32 driver implements the FAT32 file system commonly used on SD cards. This driver does not support FAT 12 or FAT 16 file systems. One draw back to this is that cards 4 GB or less may be formated with FAT 16 by default, which this driver will be unable to read.
 
 > [!NOTE]
-> This diver is still in active development. Only read funcionality is released.
+> This driver is still in active development. Only read functionality is released.
 
 
 ## fat32_is_ready
