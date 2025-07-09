@@ -23,7 +23,7 @@ Returns true is a SD card is inserted into the PicoCalc.
 
 `void sd_init(void)`
 
-Initialise the Pico to the communicate with the SD card.
+Initialise the Pico to communicate with the SD card.
 
 
 ## sd_is_sdhc
