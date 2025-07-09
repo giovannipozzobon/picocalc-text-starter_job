@@ -5,7 +5,7 @@
 #include "audio.h"
 #include "display.h"
 #include "keyboard.h"
-#include "sdcard.h"
+#include "fat32.h"
 #include "southbridge.h"
 
 // Callback for when characters become available
@@ -67,7 +67,7 @@ void picocalc_init(led_callback_t led_set_callback)
     display_init(led_set_callback, NULL);
     keyboard_init(picocalc_chars_available_notify);
     audio_init();
-    sd_init();
+    fat32_init();
 
     stdio_set_driver_enabled(&my_stdio_driver, true);
     stdio_set_translate_crlf(&my_stdio_driver, true);

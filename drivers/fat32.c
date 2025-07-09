@@ -224,7 +224,7 @@ fat32_error_t fat32_mount(void)
         return FAT32_OK;
     }
 
-    fat32_error_t result = sd_card_present();
+    fat32_error_t result = sd_card_init();
     if (result != FAT32_OK)
     {
         return result;
@@ -324,7 +324,7 @@ bool fat32_is_mounted(void)
 
 bool fat32_is_ready(void)
 {
-    return fat32_initialised && fat32_mounted && !sd_card_present();
+    return fat32_initialised && fat32_mounted && sd_card_present();
 }
 
 
@@ -536,6 +536,8 @@ static fat32_error_t find_directory_entry(fat32_entry_t *dir_entry, const char *
         return FAT32_ERROR_INVALID_PARAMETER;
     }
 
+    memset(dir_entry, 0, sizeof(fat32_entry_t));
+
     // Determine starting cluster: root or current
     uint32_t cluster = current_dir_cluster;
     if (path[0] == '/')
@@ -572,7 +574,7 @@ static fat32_error_t find_directory_entry(fat32_entry_t *dir_entry, const char *
                 // If this is the last component, return the entry
                 if (!next_token)
                 {
-                    memcpy(dir_entry, &entry, sizeof(fat32_dir_entry_t));
+                    memcpy(dir_entry, &entry, sizeof(fat32_entry_t));
                     fat32_dir_close(&dir);
                     return FAT32_OK;
                 }
@@ -600,9 +602,9 @@ static fat32_error_t find_directory_entry(fat32_entry_t *dir_entry, const char *
 // File operations (simplified implementation)
 //
 
-fat32_error_t fat32_file_open(fat32_file_t *file, const char *filename)
+fat32_error_t fat32_file_open(fat32_file_t *file, const char *path)
 {
-    if (!file || !filename)
+    if (!file || !path)
     {
         return FAT32_ERROR_INVALID_PARAMETER;
     }
@@ -615,7 +617,7 @@ fat32_error_t fat32_file_open(fat32_file_t *file, const char *filename)
     memset(file, 0, sizeof(fat32_file_t));
 
     fat32_entry_t entry;
-    fat32_error_t result = find_directory_entry(&entry, filename);
+    fat32_error_t result = find_directory_entry(&entry, path);
     if (result != FAT32_OK)
     {
         return result; // File not found or error
@@ -636,7 +638,7 @@ fat32_error_t fat32_file_open(fat32_file_t *file, const char *filename)
     return FAT32_OK;
 }
 
-fat32_error_t fat32_file_create(fat32_file_t *file, const char *filename)
+fat32_error_t fat32_file_create(fat32_file_t *file, const char *path)
 {
     // This is a placeholder implementation
     // Creating files requires finding free directory entries and clusters
@@ -750,10 +752,26 @@ fat32_error_t fat32_file_seek(fat32_file_t *file, uint32_t position)
 
     file->position = position;
 
-    // Recalculate current cluster (simplified)
-    uint32_t cluster_num = position / bytes_per_cluster;
-    file->current_cluster = file->start_cluster + cluster_num;
+    // Find the cluster containing the desired position
+    uint32_t cluster_offset = position / bytes_per_cluster;
+    uint32_t cluster = file->start_cluster;
 
+    for (uint32_t i = 0; i < cluster_offset; i++)
+    {
+        uint32_t next_cluster;
+        fat32_error_t result = read_cluster_fat_entry(cluster, &next_cluster);
+        if (result != FAT32_OK)
+        {
+            return result;
+        }
+        if (next_cluster >= FAT32_FAT_ENTRY_EOC)
+        {
+            return FAT32_ERROR_INVALID_POSITION; // Position past EOF
+        }
+        cluster = next_cluster;
+    }
+
+    file->current_cluster = cluster;
     return FAT32_OK;
 }
 
@@ -772,7 +790,7 @@ bool fat32_file_eof(fat32_file_t *file)
     return file ? (file->position >= file->file_size) : true;
 }
 
-fat32_error_t fat32_file_delete(const char *filename)
+fat32_error_t fat32_file_delete(const char *path)
 {
     // This is a placeholder implementation
     return FAT32_ERROR_INVALID_PARAMETER;
@@ -1116,12 +1134,12 @@ fat32_error_t fat32_dir_close(fat32_dir_t *dir)
     return FAT32_OK;
 }
 
-fat32_error_t fat32_dir_create(fat32_dir_t *dir, const char *dirname)
+fat32_error_t fat32_dir_create(fat32_dir_t *dir, const char *path)
 {
     return FAT32_ERROR_INVALID_PARAMETER;
 }
 
-fat32_error_t fat32_dir_delete(fat32_dir_t *dir, const char *dirname)
+fat32_error_t fat32_dir_delete(fat32_dir_t *dir, const char *path)
 {
     return FAT32_ERROR_INVALID_PARAMETER;
 }
@@ -1152,6 +1170,8 @@ const char *fat32_error_string(fat32_error_t error)
         return "Not a directory";
     case FAT32_ERROR_NOT_A_FILE:
         return "Not a file";
+    case FAT32_ERROR_INVALID_POSITION:
+        return "Invalid file position";
     case FAT32_ERROR_DIR_NOT_EMPTY:
         return "Directory not empty";
     case FAT32_ERROR_DIR_NOT_FOUND:
@@ -1205,6 +1225,14 @@ bool on_sd_card_detect(repeating_timer_t *rt)
 
 void fat32_init(void)
 {
+    if (fat32_initialised)
+    {
+        return; // Already initialized
+    }
+
+    // Initialize the SD card
+    sd_init();
+
     // Initialize the file system state
     fat32_mounted = false;
     fat32_status = FAT32_OK;
@@ -1217,5 +1245,6 @@ void fat32_init(void)
 
         // Check if a SD card is present
     add_repeating_timer_ms(500, on_sd_card_detect, NULL, &sd_card_detect_timer);
-
+    
+    fat32_initialised = true;
 }

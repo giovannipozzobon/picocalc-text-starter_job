@@ -42,6 +42,7 @@ typedef enum
     FAT32_ERROR_DIR_NOT_FOUND,
     FAT32_ERROR_DISK_FULL,
     FAT32_ERROR_FILE_EXISTS,
+    FAT32_ERROR_INVALID_POSITION,
     FAT32_ERROR_INVALID_PARAMETER,
     FAT32_ERROR_INVALID_SECTOR_SIZE,
     FAT32_ERROR_INVALID_CLUSTER_SIZE,
@@ -170,8 +171,8 @@ fat32_error_t fat32_get_total_space(uint64_t *total_space);
 fat32_error_t fat32_get_volume_name(char *name, size_t name_len);
 
 // File operations
-fat32_error_t fat32_file_open(fat32_file_t *file, const char *filename);
-fat32_error_t fat32_file_create(fat32_file_t *file, const char *filename);
+fat32_error_t fat32_file_open(fat32_file_t *file, const char *path);
+fat32_error_t fat32_file_create(fat32_file_t *file, const char *path);
 fat32_error_t fat32_file_close(fat32_file_t *file);
 fat32_error_t fat32_file_read(fat32_file_t *file, void *buffer, size_t size, size_t *bytes_read);
 fat32_error_t fat32_file_write(fat32_file_t *file, const void *buffer, size_t size);
@@ -179,16 +180,19 @@ fat32_error_t fat32_file_seek(fat32_file_t *file, uint32_t position);
 uint32_t fat32_file_tell(fat32_file_t *file);
 uint32_t fat32_file_size(fat32_file_t *file);
 bool fat32_file_eof(fat32_file_t *file);
-fat32_error_t fat32_file_delete(const char *filename);
+fat32_error_t fat32_file_delete(const char *path);
 
 // Directory operations
 fat32_error_t fat32_set_current_dir(const char *path);
 fat32_error_t fat32_get_current_dir(char *path, size_t path_len);
+
 fat32_error_t fat32_dir_open(fat32_dir_t *dir, const char *path);
 fat32_error_t fat32_dir_read(fat32_dir_t *dir, fat32_entry_t *entry);
 fat32_error_t fat32_dir_close(fat32_dir_t *dir);
-fat32_error_t fat32_dir_create(fat32_dir_t *dir, const char *dirname);
-fat32_error_t fat32_dir_delete(fat32_dir_t *dir, const char *dirname);
+fat32_error_t fat32_dir_create(fat32_dir_t *dir, const char *path);
+fat32_error_t fat32_dir_delete(fat32_dir_t *dir, const char *path);
 
 // Utility functions
 const char *fat32_error_string(fat32_error_t error);
+
+void fat32_init(void);
