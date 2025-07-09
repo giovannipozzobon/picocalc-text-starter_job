@@ -484,8 +484,8 @@ void sd_dir_dirname(const char *dirname)
 void sd_more()
 {
     printf("Error: No filename specified.\n");
-    printf("Usage: sd_read <filename>\n");
-    printf("Example: sd_read readme.txt\n");
+    printf("Usage: more <filename>\n");
+    printf("Example: more readme.txt\n");
 }
 
 void sd_read_filename(const char *filename)
