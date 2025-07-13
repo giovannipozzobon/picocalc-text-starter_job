@@ -4,6 +4,7 @@
 #define FAT32_SECTOR_SIZE (SD_BLOCK_SIZE) // Standard sector size
 #define FAT32_MAX_FILENAME_LEN (255)
 #define FAT32_MAX_PATH_LEN (260)
+#define MAX_LFN_PART (20) // Maximum number of LFN parts (13 UTF-16 chars each)
 
 // File attributes
 #define FAT32_ATTR_READ_ONLY (0x01)
@@ -59,6 +60,10 @@ typedef struct
     uint32_t file_size;
     uint32_t position;
     uint8_t attributes;
+
+    // Directory entry location for updates
+    uint32_t dir_entry_sector; // Sector containing the directory entry
+    uint32_t dir_entry_offset; // Byte offset within the sector
 } fat32_file_t;
 
 typedef struct
@@ -73,12 +78,14 @@ typedef struct
 // Directory entry structure
 typedef struct
 {
-    char name[256];
+    char filename[256];
     uint32_t size;
     uint16_t date;
     uint16_t time;
     uint32_t start_cluster; // First cluster number (FAT32)
     uint8_t attr;
+    uint32_t sector;
+    uint32_t offset;
 } fat32_entry_t;
 
 // Partition entry structure
@@ -113,11 +120,19 @@ typedef struct __attribute__((packed))
     uint32_t total_sectors_32;   // Total sectors (must be non-zero for FAT32)
 
     // FAT32 specific
-    uint32_t fat_size_32;  // Size of **each** FAT in sectors (must be non-zero)
-    uint16_t ext_flags;    // Extended flags (ignored)
+    uint32_t fat_size_32;     // Size of **each** FAT in sectors (must be non-zero)
+    uint16_t ext_flags;       // Extended flags (ignored)
     uint16_t fat32_version;   // File system version (ignored)
-    uint32_t root_cluster; // First cluster of the root directory
+    uint32_t root_cluster;    // First cluster of the root directory
     uint16_t fat32_info;      // FSInfo sector number (usually 1)
+    uint16_t backup_boot;     // Backup boot sector number (usually 6)
+    uint8_t reserved[12];     // Reserved bytes (must be zero)
+    uint8_t drive_number;     // Drive number (ignored)
+    uint8_t reserved1;        // Reserved byte (ignored)
+    uint8_t boot_signature;   // Boot signature (0x29)
+    uint32_t volume_id;       // Volume ID (ignored)
+    char volume_label[11];    // Volume label (ignored)
+    char file_system_type[8]; // File system type (should be "FAT32      ")
 } fat32_boot_sector_t;
 
 // FAT32 FSInfo sector structure
@@ -134,7 +149,7 @@ typedef struct
 
 typedef struct
 {
-    char name[11];
+    char shortname[11];
     uint8_t attr;
     uint8_t nt_res;
     uint8_t crt_time_tenth;
@@ -169,13 +184,14 @@ fat32_error_t fat32_get_status(void);
 fat32_error_t fat32_get_free_space(uint64_t *free_space);
 fat32_error_t fat32_get_total_space(uint64_t *total_space);
 fat32_error_t fat32_get_volume_name(char *name, size_t name_len);
+uint32_t fat32_get_cluster_size(void);
 
 // File operations
 fat32_error_t fat32_file_open(fat32_file_t *file, const char *path);
 fat32_error_t fat32_file_create(fat32_file_t *file, const char *path);
 fat32_error_t fat32_file_close(fat32_file_t *file);
 fat32_error_t fat32_file_read(fat32_file_t *file, void *buffer, size_t size, size_t *bytes_read);
-fat32_error_t fat32_file_write(fat32_file_t *file, const void *buffer, size_t size);
+fat32_error_t fat32_file_write(fat32_file_t *file, const void *buffer, size_t size, size_t *bytes_written);
 fat32_error_t fat32_file_seek(fat32_file_t *file, uint32_t position);
 uint32_t fat32_file_tell(fat32_file_t *file);
 uint32_t fat32_file_size(fat32_file_t *file);
@@ -190,7 +206,7 @@ fat32_error_t fat32_dir_open(fat32_dir_t *dir, const char *path);
 fat32_error_t fat32_dir_read(fat32_dir_t *dir, fat32_entry_t *entry);
 fat32_error_t fat32_dir_close(fat32_dir_t *dir);
 fat32_error_t fat32_dir_create(fat32_dir_t *dir, const char *path);
-fat32_error_t fat32_dir_delete(fat32_dir_t *dir, const char *path);
+fat32_error_t fat32_dir_delete(const char *path);
 
 // Utility functions
 const char *fat32_error_string(fat32_error_t error);

@@ -29,4 +29,12 @@ void sd_free(void);
 void sd_more(void);
 void sd_read_filename(const char *filename);
 void sd_status(void);
+void sd_mkfile(void);
+void sd_mkfile_filename(const char *filename);
+void sd_mkdir(void);
+void sd_mkdir_filename(const char *dirname);
+void sd_rm(void);
+void sd_rm_filename(const char *filename);
+void sd_rmdir(void);
+void sd_rmdir_dirname(const char *dirname);
 

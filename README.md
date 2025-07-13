@@ -1,23 +1,24 @@
 # picocalc-text-starter
 
-With this starter project, you will be able to get started on the [PicoCalc](https://www.clockworkpi.com/picocalc) using the [Pico-Series C/C++ SDK](https://www.raspberrypi.com/documentation/microcontrollers/c_sdk.html). You can create the [text-based user interface](https://en.wikipedia.org/wiki/Text-based_user_interface) experience of the 1980's that are well suited for a mouseless system.
+This starter kit was created to get you started on the [PicoCalc](https://www.clockworkpi.com/picocalc) using the [Pico-Series C/C++ SDK](https://www.raspberrypi.com/documentation/microcontrollers/c_sdk.html). You can recreate the [text-based user interface](https://en.wikipedia.org/wiki/Text-based_user_interface) experience of the 1980's that are well suited for a mouseless system.
 
-This starter contains code to write **text** to the LCD display and read input from the keyboard using the C stdio <stdio.h> library (printf, scanf, getchar, putchar, ...). 
+This starter does not consist of *best-of-bread* drivers for each component. It does provide enough capability to get **your project "started" fast**.
+
 
 > [!CAUTION]
-> This starter is not intended for getting started with only a Raspberry Pi Pico as you should already have, or will need to gain, knowledge of the Pico-series C/C++ SDK and writing embedded code for the Pico-series devices. You will require a [PicoCalc](https://www.clockworkpi.com/product-page/picocalc) to use these drivers.
+> You should already have, or will need to gain, knowledge of the Pico-series C/C++ SDK and writing embedded code for the Pico-series devices. You will require a [PicoCalc](https://www.clockworkpi.com/product-page/picocalc) to use these drivers.
 
 This starter includes drivers for:
 
-- Audio (stereo)
+- Audio (one voice per left/right channel)
 - Display (multicolour text with ANSI escape code emulation)
 - Keyboard
 - Pico onboard LED (WiFi-option aware)
 - Serial port
-- SD Card (read only)
+- SD Card (FAT32 file system only)
 - Southbridge functions (keyboard, battery, backlights)
 
-This starter does not contain the best-of-bread drivers for each component, but rather enough capability to get **your project "started" fast**.
+By default, this starter routes `stdout` and `stdin` to the display and keyboard.
 
 > [!WARNING]
 > This starter is not designed, nor intended, to create graphical or sprite-based games. Hopefully, other starters are available that can help you, though you could easily create text-based games.
@@ -48,14 +49,12 @@ int main()
 
 If you are using [Visual Studio Code](https://code.visualstudio.com) and the [Raspberry Pi Pico](https://marketplace.visualstudio.com/items?itemName=raspberry-pi.raspberry-pi-pico) extension, remember to "Switch Board" to the Pico you are using.
 
-If you are using a third-party board with WiFi you will also need to add that board to list of boards that support WiFi near the end of `CMakeList.txt`.
-
 > [!TIP]
-> You can manually update `CMakeLists.txt` to set the board to the Pico you are using (PICO_BOARD) and update the WiFi board list at the end of the file. 
+> Make sure you update `CMakeLists.txt` to set the board to the Pico you are using (PICO_BOARD) and update the WiFi board list at the end of the file if you are using a third-party board. 
 
 
 
-# Demo REPL
+# Starter Demonstration REPL
 
 The main entry point for this starter is a simple REPL to run demos and tests of the drivers and the functioning of your PicoCalc. 
 
@@ -75,9 +74,13 @@ These commands provide examples of how to use the drivers:
 - **cd** – Change the current directory
 - **dir** – Display the contents of the current directory
 - **free** – Shows the free space remaining on the SD card
+- **mkdir** – Create a new directory
+- **mkfile** – Create a new file
 - **more** – Display the contents of a file
 - **play** – Play a named song (use 'songs' for a list of available songs)
 - **pwd** – Displays the current directory
+- **rm** – Remove a file
+- **rmdir** – Remove a directory
 - **sdcard** – Provides information about the inserted SD card
 - **songs** – List all available songs
 - **test** – Run a named test (use 'tests' for a list of available tests)
@@ -105,6 +108,8 @@ Tests to make sure the hardware and drivers are working correctly.
 
 - **audio** – Test the audio driver with different notes, distinct left/right separation, melodies bouncing between channels, and harmonious intervals. 
 - **display** – Display driver stress test with scrolling lines of different colours, writing ANSI escape codes and characters as quickly as possible. Note: characters processed includes the processing of escape squences where characters displayed are the number of characters drawn on the display.
+- **keyboard** – Test the keyboard driver by pressing keys and displaying the key codes. Press 'Brk' to exit the test.
+- **fat32** – Test the FAT32 driver with different file operations (create, read, write, delete) and verify the integrity of the file system.
 
 
 # High-Level Drivers
@@ -114,7 +119,7 @@ Documentation for the high-level drivers. These drivers use low-level drivers to
 - [PicoCalc](docs/picocalc.md) – pseudo driver configures the southbridge, display and keyboard drivers
 - [Display](docs/display.md) – emulates an ANSI terminal
 - [Keyboard](docs/keyboard.md) – uses a timer loop that polls the PicoCalc's southbridge for key presses
-- [FAT32](docs/fat32.md) – read from an SD card formatted with FAT32
+- [FAT32](docs/fat32.md) – read and write from an SD card formatted with FAT32
 
 
 # Low-Level Drivers
