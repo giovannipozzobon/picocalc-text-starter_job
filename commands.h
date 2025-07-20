@@ -7,6 +7,8 @@ typedef struct {
     const char* description;
 } command_t;
 
+extern uint8_t columns; // Global variable for terminal width
+
 // Forward declarations
 void backlight(void);
 void battery(void);
@@ -20,6 +22,8 @@ void play(void);
 void run_command(const char *command);
 void show_command_library(void);
 void test(void);
+void width(void);
+void width_set(const char *width_str);
 
 // SD card commands
 void sd_pwd(void);

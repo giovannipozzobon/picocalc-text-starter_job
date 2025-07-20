@@ -13,12 +13,14 @@
 #include "drivers/audio.h"
 #include "drivers/sdcard.h"
 #include "drivers/fat32.h"
+#include "drivers/lcd.h"
 #include "songs.h"
 #include "tests.h"
 #include "commands.h"
 
 volatile bool user_interrupt = false;
 extern void readline(char *buffer, size_t size);
+uint8_t columns = 40;
 
 // Command table - map of command names to functions
 static const command_t commands[] = {
@@ -43,6 +45,7 @@ static const command_t commands[] = {
     {"songs", show_song_library, "Show song library"},
     {"test", test, "Run a test"},
     {"tests", show_test_library, "Show test library"},
+    {"width", width, "Set number of columns"},
     {"help", show_command_library, "Show this help message"},
     {NULL, NULL, NULL} // Sentinel to mark end of array
 };
@@ -236,6 +239,10 @@ void run_command(const char *command)
             {
                 sd_mv_filename(condense(cmd_args[1]), condense(cmd_args[2]));
             }
+            else if (strcmp(cmd_args[0], "width") == 0 && cmd_args[1] != NULL)
+            {
+                width_set(condense(cmd_args[1]));
+            }
             else
             {
                 commands[i].function(); // Call the command function
@@ -398,6 +405,42 @@ void test()
     printf("Use 'tests' command to see available\ntests.\n");
 }
 
+void width(void)
+{
+    printf("Error: No width specified.\n");
+    printf("Usage: width 40|64\n");
+    printf("Example: width 40\n");
+    printf("Sets the terminal width for text output.\n");
+}
+
+void width_set(const char *width)
+{
+    if (width == NULL || strlen(width) == 0)
+    {
+        printf("Error: No width specified.\n");
+        printf("Usage: width <width>\n");
+        return;
+    }
+
+    if (strcmp(width, "40") == 0)
+    {
+        columns = 40;
+        lcd_set_font(&font_8x10);
+    }
+    else if (strcmp(width, "64") == 0)
+    {
+        columns = 64;
+        lcd_set_font(&font_5x10);
+    }
+    else
+    {
+        printf("Error: Invalid width '%s'.\n", width);
+        printf("Valid widths are 40 or 64 characters.\n");
+        return;
+    }
+
+    printf("Terminal width set to %s characters.\n", width);
+}
 //
 // SD Card Commands
 //
@@ -642,7 +685,7 @@ void sd_read_filename(const char *filename)
             *line_end = '\0';
             printf("%s\n", line_start);
             size_t line_len = strlen(line_start);
-            int screen_lines = (int)((line_len + 40) / 40); // Round up
+            int screen_lines = (int)((line_len + columns - 1) / columns); // Round up
             if (screen_lines == 0)
             {
                 screen_lines = 1;
