@@ -4,6 +4,7 @@
 #include "pico/stdlib.h"
 
 #include "drivers/picocalc.h"
+#include "drivers/display.h"
 #include "drivers/keyboard.h"
 #include "drivers/onboard_led.h"
 
@@ -66,7 +67,10 @@ int main()
     int led_init_result = led_init();
 
     stdio_init_all();
-    picocalc_init(led_init_result == 0 ? set_onboard_led : NULL);
+    picocalc_init();
+    if (led_init_result == 0) {
+        display_set_led_callback(set_onboard_led);
+    }
 
     printf("\033c\033[1m\n Hello from the PicoCalc Text Starter!\033[0m\n\n");
     printf("      Contributed to the community\n");
