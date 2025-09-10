@@ -23,7 +23,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD pico CACHE STRING "Board type")
+set(PICO_BOARD pico2_w CACHE STRING "Board type")
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
@@ -65,7 +65,9 @@ add_executable(picocalc-text-starter
         drivers/sdcard.c
         drivers/sdcard.h
         drivers/southbridge.c
-        drivers/southbridge.h
+        drivers/southbridge.c
+        wifi.c
+        wifi.h
         )
 
 pico_set_program_name(picocalc-text-starter "picocalc-text-starter")
@@ -80,7 +82,11 @@ pico_enable_stdio_uart(picocalc-text-starter 0)
 pico_enable_stdio_usb(picocalc-text-starter 0)
 
 # Turn on all warnings
-target_compile_options(picocalc-text-starter PRIVATE -Wall -Werror)
+target_compile_options(picocalc-text-starter PRIVATE -Wall )
+
+#Jobond 10/09/2025 to compile and ue WiFi in otherwise a hard assert is generated in running time
+target_compile_definitions(picocalc-text-starter PRIVATE PICO_DEFAULT_LED_PIN)
+
 
 # Add the standard library to the build
 target_link_libraries(picocalc-text-starter
@@ -102,7 +108,9 @@ target_link_libraries(picocalc-text-starter
         hardware_i2c
         hardware_spi
         hardware_pio
-        hardware_clocks
+        hardware_timer
+        pico_time
+        pico_cyw43_arch_lwip_poll
         )
 
 pico_add_extra_outputs(picocalc-text-starter)

@@ -9,6 +9,7 @@
 #include "drivers/onboard_led.h"
 
 #include "commands.h"
+#include "wifi.h"
 
 bool power_off_requested = false;
 
@@ -76,6 +77,8 @@ int main()
     printf("      Contributed to the community\n");
     printf("            by Blair Leduc.\n\n");
     printf("Type \033[4mhelp\033[0m for a list of commands.\n\n");
+
+    test_wifi();
 
     // A very simple REPL
     printf("\033[qReady.\n");
