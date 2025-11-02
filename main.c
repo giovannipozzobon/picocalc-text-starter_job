@@ -7,9 +7,12 @@
 #include "drivers/display.h"
 #include "drivers/keyboard.h"
 #include "drivers/onboard_led.h"
+#include "drivers/lcd.h"
+#include "drivers/ds3231.h"
 
 #include "commands.h"
 #include "wifi.h"
+#include "tiles.h"
 
 bool power_off_requested = false;
 
@@ -77,6 +80,13 @@ int main()
     printf("      Contributed to the community\n");
     printf("            by Blair Leduc.\n\n");
     printf("Type \033[4mhelp\033[0m for a list of commands.\n\n");
+
+    // Inizializza il DS3231 RTC
+    if (ds3231_init()) {
+        printf("DS3231 RTC ready on I2C1 (GP6/GP7)\n\n");
+    } else {
+        printf("Warning: DS3231 RTC not detected\n\n");
+    }
 
     test_wifi();
 

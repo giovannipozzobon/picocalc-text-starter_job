@@ -14,6 +14,7 @@
 #include "drivers/sdcard.h"
 #include "drivers/fat32.h"
 #include "drivers/lcd.h"
+#include "drivers/ds3231.h"
 #include "songs.h"
 #include "tests.h"
 #include "commands.h"
@@ -47,6 +48,7 @@ static const command_t commands[] = {
     {"songs", show_song_library, "Show song library"},
     {"test", test, "Run a test"},
     {"tests", show_test_library, "Show test library"},
+    {"time", rtc_time, "Show/set DS3231 RTC time"},
     {"width", width, "Set number of columns"},
     {"help", show_command_library, "Show this help message"},
     {NULL, NULL, NULL} // Sentinel to mark end of array
@@ -255,6 +257,10 @@ void run_command(const char *command)
             else if (strcmp(cmd_args[0], "backlight") == 0 && cmd_args[1] != NULL && cmd_args[2] != NULL)
             {
                 backlight_set(condense(cmd_args[1]), condense(cmd_args[2]));
+            }
+            else if (strcmp(cmd_args[0], "time") == 0 && cmd_args[1] != NULL && cmd_args[2] != NULL)
+            {
+                rtc_time_set(condense(cmd_args[1]), condense(cmd_args[2]));
             }
             else
             {
@@ -970,3 +976,119 @@ void sd_mv_filename(const char *oldname, const char *newname)
 
     printf("'%s' moved to '%s'.\n", oldname, newname);
 }
+
+//
+// RTC DS3231 Commands
+//
+
+// Array con i nomi dei giorni della settimana
+static const char *day_names[] = {
+    "???", "Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"
+};
+
+void rtc_time(void)
+{
+    ds3231_datetime_t dt;
+
+    if (!ds3231_read_time(&dt))
+    {
+        printf("Errore nella lettura dell'RTC DS3231.\n");
+        printf("Verifica il collegamento I2C.\n");
+        return;
+    }
+
+    // Mostra data e ora in formato leggibile
+    printf("Data: %s %02d/%02d/20%02d\n",
+           day_names[dt.day], dt.date, dt.month, dt.year);
+    printf("Ora:  %02d:%02d:%02d\n",
+           dt.hours, dt.minutes, dt.seconds);
+}
+
+void rtc_time_set(const char *date, const char *time)
+{
+    if (date == NULL || time == NULL)
+    {
+        printf("Errore: Parametri mancanti.\n");
+        printf("Uso: time <gg/mm/aa> <hh:mm:ss>\n");
+        printf("Esempio: time 15/03/25 14:30:00\n");
+        printf("Giorni: 1=Dom, 2=Lun, 3=Mar, 4=Mer,\n");
+        printf("        5=Gio, 6=Ven, 7=Sab\n");
+        return;
+    }
+
+    ds3231_datetime_t dt;
+    int day, month, year;
+    int hours, minutes, seconds;
+
+    // Parse della data (gg/mm/aa)
+    if (sscanf(date, "%d/%d/%d", &day, &month, &year) != 3)
+    {
+        printf("Errore: formato data non valido.\n");
+        printf("Usa: gg/mm/aa\n");
+        printf("Esempio: 15/03/25\n");
+        return;
+    }
+
+    // Parse dell'ora (hh:mm:ss)
+    if (sscanf(time, "%d:%d:%d", &hours, &minutes, &seconds) != 3)
+    {
+        printf("Errore: formato ora non valido.\n");
+        printf("Usa: hh:mm:ss\n");
+        printf("Esempio: 14:30:00\n");
+        return;
+    }
+
+    // Validazione dei valori
+    if (day < 1 || day > 31 || month < 1 || month > 12 || year > 99)
+    {
+        printf("Errore: data non valida.\n");
+        printf("Giorno: 1-31, Mese: 1-12, Anno: 0-99\n");
+        return;
+    }
+
+    if (hours > 23 || minutes > 59 || seconds > 59)
+    {
+        printf("Errore: ora non valida.\n");
+        printf("Ore: 0-23, Minuti: 0-59, Secondi: 0-59\n");
+        return;
+    }
+
+    // Calcola il giorno della settimana usando l'algoritmo di Zeller
+    // Per il calendario Gregoriano
+    int d = day;
+    int m = month;
+    int y = 2000 + year;
+
+    if (m < 3)
+    {
+        m += 12;
+        y--;
+    }
+
+    int dow = (d + (13 * (m + 1)) / 5 + y + y / 4 - y / 100 + y / 400) % 7;
+    // Conversione: 0=Sab, 1=Dom, 2=Lun, ... -> 1=Dom, 2=Lun, ..., 7=Sab
+    dow = (dow == 0) ? 7 : dow;
+
+    // Prepara la struttura datetime
+    dt.seconds = seconds;
+    dt.minutes = minutes;
+    dt.hours = hours;
+    dt.day = dow;
+    dt.date = day;
+    dt.month = month;
+    dt.year = year;
+
+    // Scrivi sul DS3231
+    if (!ds3231_write_time(&dt))
+    {
+        printf("Errore nella scrittura dell'RTC DS3231.\n");
+        return;
+    }
+
+    printf("RTC DS3231 configurato:\n");
+    printf("Data: %s %02d/%02d/20%02d\n",
+           day_names[dt.day], dt.date, dt.month, dt.year);
+    printf("Ora:  %02d:%02d:%02d\n",
+           dt.hours, dt.minutes, dt.seconds);
+}
+

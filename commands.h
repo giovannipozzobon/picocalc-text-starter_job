@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 #define PERCENT_TO_BYTE_SCALE (2.55f)
 
 // Command structure for function pointer table
@@ -51,4 +53,8 @@ void sd_rm(void);
 void sd_rm_filename(const char *filename);
 void sd_rmdir(void);
 void sd_rmdir_dirname(const char *dirname);
+
+// RTC DS3231 commands
+void rtc_time(void);
+void rtc_time_set(const char *date, const char *time);
 

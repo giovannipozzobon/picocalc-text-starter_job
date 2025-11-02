@@ -49,6 +49,8 @@ add_executable(picocalc-text-starter
         drivers/clib.c
         drivers/display.c
         drivers/display.h
+        drivers/ds3231.c
+        drivers/ds3231.h
         drivers/fat32.c
         drivers/fat32.h
         drivers/font-5x10.c
