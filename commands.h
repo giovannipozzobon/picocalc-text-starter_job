@@ -58,3 +58,11 @@ void sd_rmdir_dirname(const char *dirname);
 void rtc_time(void);
 void rtc_time_set(const char *date, const char *time);
 
+// File viewer commands
+void hexdump(void);
+void hexdump_filename(const char *filename);
+
+// Image display commands
+void showimg(void);
+void showimg_filename(const char *filename);
+

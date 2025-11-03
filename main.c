@@ -88,7 +88,8 @@ int main()
         printf("Warning: DS3231 RTC not detected\n\n");
     }
 
-    test_wifi();
+    //JOBOND 
+    //test_wifi();
 
     // A very simple REPL
     printf("\033[qReady.\n");

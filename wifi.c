@@ -55,7 +55,7 @@ int test_wifi() {
         return -1;
     }
     printf("Connected!\n");
-
+    
     // Crea PCB UDP
     ntp_pcb = udp_new();
     if (!ntp_pcb) {

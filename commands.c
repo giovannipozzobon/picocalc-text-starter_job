@@ -34,6 +34,7 @@ static const command_t commands[] = {
     {"cd", cd, "Change directory ('/' path sep.)"},
     {"dir", dir, "List files on the SD card"},
     {"free", sd_free, "Show free space on the SD card"},
+    {"hexdump", hexdump, "Show hex dump of a file"},
     {"mkdir", sd_mkdir, "Create a new directory"},
     {"mkfile", sd_mkfile, "Create a new file"},
     {"mv", sd_mv, "Move or rename a file/directory"},
@@ -45,6 +46,7 @@ static const command_t commands[] = {
     {"rm", sd_rm, "Remove a file"},
     {"rmdir", sd_rmdir, "Remove a directory"},
     {"sdcard", sd_status, "Show SD card status"},
+    {"showimg", showimg, "Display image from SD card"},
     {"songs", show_song_library, "Show song library"},
     {"test", test, "Run a test"},
     {"tests", show_test_library, "Show test library"},
@@ -261,6 +263,14 @@ void run_command(const char *command)
             else if (strcmp(cmd_args[0], "time") == 0 && cmd_args[1] != NULL && cmd_args[2] != NULL)
             {
                 rtc_time_set(condense(cmd_args[1]), condense(cmd_args[2]));
+            }
+            else if (strcmp(cmd_args[0], "hexdump") == 0 && cmd_args[1] != NULL)
+            {
+                hexdump_filename(condense(cmd_args[1]));
+            }
+            else if (strcmp(cmd_args[0], "showimg") == 0 && cmd_args[1] != NULL)
+            {
+                showimg_filename(condense(cmd_args[1]));
             }
             else
             {
@@ -1090,5 +1100,200 @@ void rtc_time_set(const char *date, const char *time)
            day_names[dt.day], dt.date, dt.month, dt.year);
     printf("Ora:  %02d:%02d:%02d\n",
            dt.hours, dt.minutes, dt.seconds);
+}
+
+//
+// File Viewer Commands
+//
+
+void hexdump(void)
+{
+    printf("Errore: Nessun file specificato.\n");
+    printf("Uso: hexdump <filename>\n");
+    printf("Esempio: hexdump image.raw\n");
+    printf("Mostra il contenuto esadecimale\ndi un file.\n");
+}
+
+void hexdump_filename(const char *filename)
+{
+    if (filename == NULL || strlen(filename) == 0)
+    {
+        printf("Errore: Nessun file specificato.\n");
+        printf("Uso: hexdump <filename>\n");
+        return;
+    }
+
+    FILE *fp = fopen(filename, "rb");
+    if (fp == NULL)
+    {
+        printf("Impossibile aprire il file '%s':\n%s\n", filename, strerror(errno));
+        return;
+    }
+
+    // Ottieni la dimensione del file
+    fseek(fp, 0, SEEK_END);
+    long file_size = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    printf("File: %s (%ld bytes)\n\n", filename, file_size);
+
+    uint8_t buffer[6];  // Ridotto a 6 bytes per riga
+    size_t bytes_read;
+    uint32_t offset = 0;
+    int line_count = 0;
+
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), fp)) > 0)
+    {
+        // Stampa offset
+        printf("%06lx:", (unsigned long)offset);
+
+        // Stampa hex
+        for (size_t i = 0; i < 6; i++)
+        {
+            if (i < bytes_read)
+            {
+                printf(" %02x", buffer[i]);
+            }
+            else
+            {
+                printf("   ");
+            }
+        }
+
+        printf(" |");
+
+        // Stampa ASCII
+        for (size_t i = 0; i < bytes_read; i++)
+        {
+            if (buffer[i] >= 32 && buffer[i] < 127)
+            {
+                printf("%c", buffer[i]);
+            }
+            else
+            {
+                printf(".");
+            }
+        }
+
+        printf("|\n");
+
+        offset += bytes_read;
+        line_count++;
+
+        // Pausa ogni 30 righe per evitare scrolling
+        if (line_count > 0 && line_count % 30 == 0 && !feof(fp))
+        {
+            printf("Premi un tasto per continuare\n(o 'q' per uscire)...");
+            char ch = getchar();
+            if (ch == 'q' || ch == 'Q')
+            {
+                printf("\n");
+                break;
+            }
+            printf("\n");
+        }
+    }
+
+    fclose(fp);
+    printf("\nFine file. %ld bytes totali.\n", file_size);
+}
+
+//
+// Image Display Commands
+//
+
+void showimg(void)
+{
+    printf("Errore: Nessun file specificato.\n");
+    printf("Uso: showimg <filename>\n");
+    printf("Esempio: showimg image.raw\n");
+    printf("\nFormato file RAW RGB565:\n");
+    printf("  Byte 0-1: Larghezza (16-bit LE)\n");
+    printf("  Byte 2-3: Altezza (16-bit LE)\n");
+    printf("  Byte 4+:  Pixel RGB565 (2 byte/pixel)\n");
+}
+
+void showimg_filename(const char *filename)
+{
+    if (filename == NULL || strlen(filename) == 0)
+    {
+        printf("Errore: Nessun file specificato.\n");
+        printf("Uso: showimg <filename>\n");
+        return;
+    }
+
+    FILE *fp = fopen(filename, "rb");
+    if (fp == NULL)
+    {
+        printf("Impossibile aprire il file '%s':\n%s\n", filename, strerror(errno));
+        return;
+    }
+
+    // Leggi header (larghezza e altezza) - formato little-endian
+    uint16_t img_width, img_height;
+    uint8_t header_bytes[4];
+
+    // Leggi 4 bytes dell'header
+    if (fread(header_bytes, 1, 4, fp) != 4)
+    {
+        printf("Errore: File troppo piccolo o corrotto.\n");
+        fclose(fp);
+        return;
+    }
+
+    // Converti da little-endian a uint16_t
+    img_width = header_bytes[0] | (header_bytes[1] << 8);
+    img_height = header_bytes[2] | (header_bytes[3] << 8);
+
+    // Validazione dimensioni
+    if (img_width == 0 || img_height == 0 || img_width > WIDTH || img_height > HEIGHT)
+    {
+        printf("Errore: Dimensioni non valide.\n");
+        printf("Massimo: %dx%d pixel\n", WIDTH, HEIGHT);
+        fclose(fp);
+        return;
+    }
+
+    // Alloca buffer per una riga alla volta (per risparmiare memoria)
+    uint16_t *line_buffer = (uint16_t *)malloc(img_width * sizeof(uint16_t));
+    if (line_buffer == NULL)
+    {
+        printf("Errore: Memoria insufficiente.\n");
+        fclose(fp);
+        return;
+    }
+
+    // Centra l'immagine sullo schermo
+    uint16_t x_offset = (WIDTH - img_width) / 2;
+    uint16_t y_offset = (HEIGHT - img_height) / 2;
+
+    // Nascondi il cursore
+    lcd_enable_cursor(false);
+
+    // Pulisci lo schermo (nero)
+    lcd_solid_rectangle(0x0000, 0, 0, WIDTH, HEIGHT);
+
+    // Leggi e disegna riga per riga
+    for (uint16_t y = 0; y < img_height; y++)
+    {
+        size_t pixels_read = fread(line_buffer, sizeof(uint16_t), img_width, fp);
+        if (pixels_read != img_width)
+        {
+            break;
+        }
+
+        // Disegna la riga sullo schermo
+        lcd_blit(line_buffer, x_offset, y_offset + y, img_width, 1);
+    }
+
+    free(line_buffer);
+    fclose(fp);
+
+    // Aspetta input utente
+    getchar();
+
+    // Ripristina schermo di testo e cursore
+    lcd_clear_screen();
+    lcd_enable_cursor(true);
 }
 
