@@ -61,6 +61,8 @@ void rtc_time_set(const char *date, const char *time);
 // File viewer commands
 void hexdump(void);
 void hexdump_filename(const char *filename);
+void viewtext(void);
+void viewtext_filename(const char *filename);
 
 // Image display commands
 void showimg(void);

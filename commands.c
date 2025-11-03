@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
+#include <time.h>
 #include <sys/stat.h>
 #include <errno.h>
 
@@ -14,6 +16,7 @@
 #include "drivers/sdcard.h"
 #include "drivers/fat32.h"
 #include "drivers/lcd.h"
+#include "drivers/keyboard.h"
 #include "drivers/ds3231.h"
 #include "songs.h"
 #include "tests.h"
@@ -51,6 +54,7 @@ static const command_t commands[] = {
     {"test", test, "Run a test"},
     {"tests", show_test_library, "Show test library"},
     {"time", rtc_time, "Show/set DS3231 RTC time"},
+    {"viewtext", viewtext, "View text file with scrolling"},
     {"width", width, "Set number of columns"},
     {"help", show_command_library, "Show this help message"},
     {NULL, NULL, NULL} // Sentinel to mark end of array
@@ -271,6 +275,10 @@ void run_command(const char *command)
             else if (strcmp(cmd_args[0], "showimg") == 0 && cmd_args[1] != NULL)
             {
                 showimg_filename(condense(cmd_args[1]));
+            }
+            else if (strcmp(cmd_args[0], "viewtext") == 0 && cmd_args[1] != NULL)
+            {
+                viewtext_filename(condense(cmd_args[1]));
             }
             else
             {
@@ -1293,6 +1301,202 @@ void showimg_filename(const char *filename)
     getchar();
 
     // Restore text screen and cursor
+    lcd_clear_screen();
+    lcd_enable_cursor(true);
+}
+
+//
+// Text File Viewer Command
+//
+
+void viewtext(void)
+{
+    printf("Error: No file specified.\n");
+    printf("Usage: viewtext <filename>\n");
+    printf("Example: viewtext readme.txt\n");
+}
+
+void viewtext_filename(const char *filename)
+{
+    FILE *fp = fopen(filename, "r");
+    if (fp == NULL)
+    {
+        printf("Cannot open file '%s':\n%s\n", filename, strerror(errno));
+        return;
+    }
+
+    // Count lines and characters
+    int total_lines = 0;
+    long total_chars = 0;
+    int ch;
+
+    while ((ch = fgetc(fp)) != EOF)
+    {
+        total_chars++;
+        if (ch == '\n')
+            total_lines++;
+    }
+
+    // If file doesn't end with newline, count last line
+    if (total_chars > 0)
+    {
+        fseek(fp, -1, SEEK_END);
+        if (fgetc(fp) != '\n')
+            total_lines++;
+    }
+
+    // Reset to beginning
+    fseek(fp, 0, SEEK_SET);
+
+    // Read all lines into memory
+    char **lines = NULL;
+    int line_capacity = 100;
+    int line_count = 0;
+
+    lines = (char **)malloc(line_capacity * sizeof(char *));
+    if (lines == NULL)
+    {
+        printf("Error: Insufficient memory.\n");
+        fclose(fp);
+        return;
+    }
+
+    char buffer[256];
+    while (fgets(buffer, sizeof(buffer), fp) != NULL)
+    {
+        // Expand array if needed
+        if (line_count >= line_capacity)
+        {
+            line_capacity *= 2;
+            char **new_lines = (char **)realloc(lines, line_capacity * sizeof(char *));
+            if (new_lines == NULL)
+            {
+                printf("Error: Insufficient memory.\n");
+                for (int i = 0; i < line_count; i++)
+                    free(lines[i]);
+                free(lines);
+                fclose(fp);
+                return;
+            }
+            lines = new_lines;
+        }
+
+        // Allocate and copy line
+        size_t len = strlen(buffer);
+        // Remove newline if present
+        if (len > 0 && buffer[len - 1] == '\n')
+            buffer[len - 1] = '\0';
+
+        lines[line_count] = (char *)malloc(strlen(buffer) + 1);
+        if (lines[line_count] == NULL)
+        {
+            printf("Error: Insufficient memory.\n");
+            for (int i = 0; i < line_count; i++)
+                free(lines[i]);
+            free(lines);
+            fclose(fp);
+            return;
+        }
+        strcpy(lines[line_count], buffer);
+        line_count++;
+    }
+
+    fclose(fp);
+
+    // Now display the file with scrolling
+    lcd_clear_screen();
+    lcd_enable_cursor(false);
+
+    int scroll_pos = 0;
+    int prev_scroll_pos = -1; // Track previous position
+    const int status_lines = 2; // Lines for status bar
+    const int text_lines = 24 - status_lines; // Available lines for text
+
+    // Draw status bar once (it doesn't change)
+    printf("\033[1;1H"); // Move to row 1, column 1
+    printf("\033[7m"); // Reverse video
+    printf("%-40s", filename);
+    printf("\033[0m"); // Reset
+
+    // Second line of status
+    printf("\033[2;1H"); // Move to row 2, column 1
+    printf("\033[7m");
+    char status_line[41];
+    snprintf(status_line, sizeof(status_line),
+             "Chars:%ld Lines:%d",
+             total_chars, total_lines);
+    printf("%-40s", status_line);
+    printf("\033[0m"); // Reset
+
+    while (true)
+    {
+        // Only redraw if scroll position changed
+        if (scroll_pos != prev_scroll_pos)
+        {
+            // Display text lines
+            for (int i = 0; i < text_lines; i++)
+            {
+                int line_index = scroll_pos + i;
+                int screen_row = i + 3; // Start from row 3 (after status bar)
+
+                printf("\033[%d;1H", screen_row); // Move to specific row, column 1
+
+                if (line_index < line_count)
+                {
+                    // Truncate line if too long (40 chars max)
+                    char display_line[41];
+                    strncpy(display_line, lines[line_index], 40);
+                    display_line[40] = '\0';
+                    printf("%-40s", display_line);
+                }
+                else
+                {
+                    // Empty line
+                    printf("%-40s", "");
+                }
+            }
+
+            prev_scroll_pos = scroll_pos;
+        }
+
+        // Wait for key
+        char key = getchar();
+
+        if (key == KEY_ESC || key == 'q' || key == 'Q')
+        {
+            break;
+        }
+        else if (key == KEY_UP && scroll_pos > 0)
+        {
+            scroll_pos--;
+        }
+        else if (key == KEY_DOWN && scroll_pos < line_count - text_lines)
+        {
+            if (scroll_pos < line_count - 1)
+                scroll_pos++;
+        }
+        else if (key == KEY_PAGE_UP)
+        {
+            scroll_pos -= text_lines;
+            if (scroll_pos < 0)
+                scroll_pos = 0;
+        }
+        else if (key == KEY_PAGE_DOWN)
+        {
+            scroll_pos += text_lines;
+            if (scroll_pos > line_count - text_lines)
+                scroll_pos = line_count - text_lines;
+            if (scroll_pos < 0)
+                scroll_pos = 0;
+        }
+    }
+
+    // Free memory
+    for (int i = 0; i < line_count; i++)
+        free(lines[i]);
+    free(lines);
+
+    // Restore screen
     lcd_clear_screen();
     lcd_enable_cursor(true);
 }
