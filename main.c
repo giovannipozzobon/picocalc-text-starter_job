@@ -21,7 +21,6 @@ bool power_off_requested = false;
 #define HISTORY_BUFFER_SIZE 40
 static char history[HISTORY_SIZE][HISTORY_BUFFER_SIZE];
 static int history_count = 0;
-static int history_index = 0;
 
 void set_onboard_led(uint8_t led)
 {
@@ -37,11 +36,21 @@ void str_to_lower(char *s) {
     }
 }
 
+// Safe string copy that always null-terminates
+static inline void safe_strcpy(char *dst, const char *src, size_t dst_size) {
+    if (dst_size == 0) return;
+    size_t i;
+    for (i = 0; i < dst_size - 1 && src[i] != '\0'; i++) {
+        dst[i] = src[i];
+    }
+    dst[i] = '\0';
+}
+
 void readline(char *buffer, size_t size)
 {
     size_t index = 0;
-    int history_pos = -1; // -1 significa "nessuna navigazione history"
-    char temp_buffer[HISTORY_BUFFER_SIZE] = {0}; // Buffer temporaneo per il comando corrente
+    int history_pos = -1; // -1 means "not navigating history"
+    char temp_buffer[HISTORY_BUFFER_SIZE] = {0}; // Temporary buffer for current command
 
     while (true)
     {
@@ -56,14 +65,14 @@ void readline(char *buffer, size_t size)
             printf("\n");
             break; // End of line
         }
-        else if (ch == KEY_UP) // Freccia SU - naviga history verso l'alto
+        else if (ch == KEY_UP) // UP arrow - navigate history upward
         {
             if (history_count == 0) continue;
 
-            // Salva il comando corrente la prima volta
+            // Save current command the first time
             if (history_pos == -1)
             {
-                strncpy(temp_buffer, buffer, HISTORY_BUFFER_SIZE - 1);
+                safe_strcpy(temp_buffer, buffer, HISTORY_BUFFER_SIZE);
                 history_pos = history_count;
             }
 
@@ -71,25 +80,24 @@ void readline(char *buffer, size_t size)
             {
                 history_pos--;
 
-                // Cancella la riga corrente
+                // Clear current line
                 while (index > 0)
                 {
                     printf("\b \b");
                     index--;
                 }
 
-                // Copia e mostra il comando dalla history
-                strncpy(buffer, history[history_pos], size - 1);
-                buffer[size - 1] = '\0';
+                // Copy and display command from history
+                safe_strcpy(buffer, history[history_pos], size);
                 index = strlen(buffer);
                 printf("%s", buffer);
             }
         }
-        else if (ch == KEY_DOWN) // Freccia GIÙ - naviga history verso il basso
+        else if (ch == KEY_DOWN) // DOWN arrow - navigate history downward
         {
             if (history_pos == -1) continue;
 
-            // Cancella la riga corrente
+            // Clear current line
             while (index > 0)
             {
                 printf("\b \b");
@@ -99,16 +107,15 @@ void readline(char *buffer, size_t size)
             if (history_pos < history_count - 1)
             {
                 history_pos++;
-                strncpy(buffer, history[history_pos], size - 1);
+                safe_strcpy(buffer, history[history_pos], size);
             }
             else
             {
-                // Torna al comando che stava scrivendo
+                // Return to what was being typed
                 history_pos = -1;
-                strncpy(buffer, temp_buffer, size - 1);
+                safe_strcpy(buffer, temp_buffer, size);
             }
 
-            buffer[size - 1] = '\0';
             index = strlen(buffer);
             printf("%s", buffer);
         }
@@ -126,22 +133,21 @@ void readline(char *buffer, size_t size)
     }
     buffer[index] = '\0'; // Null-terminate the string
 
-    // Aggiungi il comando alla history se non è vuoto e diverso dall'ultimo
+    // Add command to history if not empty and different from last
     if (index > 0 && (history_count == 0 || strcmp(buffer, history[history_count - 1]) != 0))
     {
-        // Se la history è piena, sposta tutti gli elementi indietro
+        // If history is full, shift all elements back
         if (history_count >= HISTORY_SIZE)
         {
             for (int i = 0; i < HISTORY_SIZE - 1; i++)
             {
-                strncpy(history[i], history[i + 1], HISTORY_BUFFER_SIZE - 1);
+                safe_strcpy(history[i], history[i + 1], HISTORY_BUFFER_SIZE);
             }
             history_count = HISTORY_SIZE - 1;
         }
 
-        // Aggiungi il nuovo comando
-        strncpy(history[history_count], buffer, HISTORY_BUFFER_SIZE - 1);
-        history[history_count][HISTORY_BUFFER_SIZE - 1] = '\0';
+        // Add new command
+        safe_strcpy(history[history_count], buffer, HISTORY_BUFFER_SIZE);
         history_count++;
     }
 }

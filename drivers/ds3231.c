@@ -28,11 +28,11 @@ bool ds3231_init(void) {
     int result = i2c_read_blocking(DS3231_I2C_PORT, DS3231_I2C_ADDR, &test_data, 1, false);
 
     if (result < 0) {
-        printf("Errore: DS3231 non trovato sulla porta I2C1\n");
+        printf("Error: DS3231 not found on I2C1 port\n");
         return false;
     }
 
-    printf("DS3231 inizializzato con successo\n");
+    printf("DS3231 initialized successfully\n");
     return true;
 }
 
@@ -44,28 +44,28 @@ bool ds3231_read_time(ds3231_datetime_t *datetime) {
     uint8_t buffer[7];
     uint8_t reg = DS3231_REG_SECONDS;
 
-    // Scrivi l'indirizzo del registro da cui iniziare a leggere
+    // Write register address to start reading from
     int result = i2c_write_blocking(DS3231_I2C_PORT, DS3231_I2C_ADDR, &reg, 1, true);
     if (result < 0) {
-        printf("Errore nella scrittura dell'indirizzo del registro DS3231\n");
+        printf("Error writing DS3231 register address\n");
         return false;
     }
 
-    // Leggi 7 byte (secondi, minuti, ore, giorno, data, mese, anno)
+    // Read 7 bytes (seconds, minutes, hours, day, date, month, year)
     result = i2c_read_blocking(DS3231_I2C_PORT, DS3231_I2C_ADDR, buffer, 7, false);
     if (result < 0) {
-        printf("Errore nella lettura dei dati dal DS3231\n");
+        printf("Error reading data from DS3231\n");
         return false;
     }
 
-    // Converti i valori BCD in decimali e memorizzali nella struttura
-    datetime->seconds = bcd_to_dec(buffer[0] & 0x7F);  // Maschera il bit 7
-    datetime->minutes = bcd_to_dec(buffer[1] & 0x7F);  // Maschera il bit 7
-    datetime->hours   = bcd_to_dec(buffer[2] & 0x3F);  // Formato 24 ore, maschera i bit 6-7
-    datetime->day     = bcd_to_dec(buffer[3] & 0x07);  // Maschera i bit 3-7
-    datetime->date    = bcd_to_dec(buffer[4] & 0x3F);  // Maschera i bit 6-7
-    datetime->month   = bcd_to_dec(buffer[5] & 0x1F);  // Maschera i bit 5-7
-    datetime->year    = bcd_to_dec(buffer[6]);         // Anno (0-99)
+    // Convert BCD values to decimal and store in structure
+    datetime->seconds = bcd_to_dec(buffer[0] & 0x7F);  // Mask bit 7
+    datetime->minutes = bcd_to_dec(buffer[1] & 0x7F);  // Mask bit 7
+    datetime->hours   = bcd_to_dec(buffer[2] & 0x3F);  // 24-hour format, mask bits 6-7
+    datetime->day     = bcd_to_dec(buffer[3] & 0x07);  // Mask bits 3-7
+    datetime->date    = bcd_to_dec(buffer[4] & 0x3F);  // Mask bits 6-7
+    datetime->month   = bcd_to_dec(buffer[5] & 0x1F);  // Mask bits 5-7
+    datetime->year    = bcd_to_dec(buffer[6]);         // Year (0-99)
 
     return true;
 }
@@ -75,33 +75,33 @@ bool ds3231_write_time(const ds3231_datetime_t *datetime) {
         return false;
     }
 
-    // Validazione dei valori
+    // Validate values
     if (datetime->seconds > 59 || datetime->minutes > 59 || datetime->hours > 23 ||
         datetime->day < 1 || datetime->day > 7 ||
         datetime->date < 1 || datetime->date > 31 ||
         datetime->month < 1 || datetime->month > 12 ||
         datetime->year > 99) {
-        printf("Errore: valori di data/ora non validi\n");
+        printf("Error: Invalid date/time values\n");
         return false;
     }
 
-    // Buffer: [registro iniziale, secondi, minuti, ore, giorno, data, mese, anno]
+    // Buffer: [start register, seconds, minutes, hours, day, date, month, year]
     uint8_t buffer[8];
 
-    buffer[0] = DS3231_REG_SECONDS;                // Registro iniziale
-    buffer[1] = dec_to_bcd(datetime->seconds);     // Secondi in BCD
-    buffer[2] = dec_to_bcd(datetime->minutes);     // Minuti in BCD
-    buffer[3] = dec_to_bcd(datetime->hours);       // Ore in BCD (formato 24 ore)
-    buffer[4] = dec_to_bcd(datetime->day);         // Giorno della settimana in BCD
-    buffer[5] = dec_to_bcd(datetime->date);        // Data in BCD
-    buffer[6] = dec_to_bcd(datetime->month);       // Mese in BCD
-    buffer[7] = dec_to_bcd(datetime->year);        // Anno in BCD
+    buffer[0] = DS3231_REG_SECONDS;                // Start register
+    buffer[1] = dec_to_bcd(datetime->seconds);     // Seconds in BCD
+    buffer[2] = dec_to_bcd(datetime->minutes);     // Minutes in BCD
+    buffer[3] = dec_to_bcd(datetime->hours);       // Hours in BCD (24-hour format)
+    buffer[4] = dec_to_bcd(datetime->day);         // Day of week in BCD
+    buffer[5] = dec_to_bcd(datetime->date);        // Date in BCD
+    buffer[6] = dec_to_bcd(datetime->month);       // Month in BCD
+    buffer[7] = dec_to_bcd(datetime->year);        // Year in BCD
 
-    // Scrivi tutti i registri in una singola transazione
+    // Write all registers in a single transaction
     int result = i2c_write_blocking(DS3231_I2C_PORT, DS3231_I2C_ADDR, buffer, 8, false);
 
     if (result < 0) {
-        printf("Errore nella scrittura dei dati al DS3231\n");
+        printf("Error writing data to DS3231\n");
         return false;
     }
 

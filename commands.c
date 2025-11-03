@@ -1002,15 +1002,15 @@ void rtc_time(void)
 
     if (!ds3231_read_time(&dt))
     {
-        printf("Errore nella lettura dell'RTC DS3231.\n");
-        printf("Verifica il collegamento I2C.\n");
+        printf("Error reading DS3231 RTC.\n");
+        printf("Check I2C connection.\n");
         return;
     }
 
-    // Mostra data e ora in formato leggibile
-    printf("Data: %s %02d/%02d/20%02d\n",
+    // Display date and time in readable format
+    printf("Date: %s %02d/%02d/20%02d\n",
            day_names[dt.day], dt.date, dt.month, dt.year);
-    printf("Ora:  %02d:%02d:%02d\n",
+    printf("Time: %02d:%02d:%02d\n",
            dt.hours, dt.minutes, dt.seconds);
 }
 
@@ -1018,11 +1018,11 @@ void rtc_time_set(const char *date, const char *time)
 {
     if (date == NULL || time == NULL)
     {
-        printf("Errore: Parametri mancanti.\n");
-        printf("Uso: time <gg/mm/aa> <hh:mm:ss>\n");
-        printf("Esempio: time 15/03/25 14:30:00\n");
-        printf("Giorni: 1=Dom, 2=Lun, 3=Mar, 4=Mer,\n");
-        printf("        5=Gio, 6=Ven, 7=Sab\n");
+        printf("Error: Missing parameters.\n");
+        printf("Usage: time <dd/mm/yy> <hh:mm:ss>\n");
+        printf("Example: time 15/03/25 14:30:00\n");
+        printf("Days: 1=Sun, 2=Mon, 3=Tue, 4=Wed,\n");
+        printf("      5=Thu, 6=Fri, 7=Sat\n");
         return;
     }
 
@@ -1030,41 +1030,41 @@ void rtc_time_set(const char *date, const char *time)
     int day, month, year;
     int hours, minutes, seconds;
 
-    // Parse della data (gg/mm/aa)
+    // Parse date (dd/mm/yy)
     if (sscanf(date, "%d/%d/%d", &day, &month, &year) != 3)
     {
-        printf("Errore: formato data non valido.\n");
-        printf("Usa: gg/mm/aa\n");
-        printf("Esempio: 15/03/25\n");
+        printf("Error: Invalid date format.\n");
+        printf("Use: dd/mm/yy\n");
+        printf("Example: 15/03/25\n");
         return;
     }
 
-    // Parse dell'ora (hh:mm:ss)
+    // Parse time (hh:mm:ss)
     if (sscanf(time, "%d:%d:%d", &hours, &minutes, &seconds) != 3)
     {
-        printf("Errore: formato ora non valido.\n");
-        printf("Usa: hh:mm:ss\n");
-        printf("Esempio: 14:30:00\n");
+        printf("Error: Invalid time format.\n");
+        printf("Use: hh:mm:ss\n");
+        printf("Example: 14:30:00\n");
         return;
     }
 
-    // Validazione dei valori
+    // Validate values
     if (day < 1 || day > 31 || month < 1 || month > 12 || year > 99)
     {
-        printf("Errore: data non valida.\n");
-        printf("Giorno: 1-31, Mese: 1-12, Anno: 0-99\n");
+        printf("Error: Invalid date.\n");
+        printf("Day: 1-31, Month: 1-12, Year: 0-99\n");
         return;
     }
 
     if (hours > 23 || minutes > 59 || seconds > 59)
     {
-        printf("Errore: ora non valida.\n");
-        printf("Ore: 0-23, Minuti: 0-59, Secondi: 0-59\n");
+        printf("Error: Invalid time.\n");
+        printf("Hours: 0-23, Minutes: 0-59, Seconds: 0-59\n");
         return;
     }
 
-    // Calcola il giorno della settimana usando l'algoritmo di Zeller
-    // Per il calendario Gregoriano
+    // Calculate day of week using Zeller's algorithm
+    // For Gregorian calendar
     int d = day;
     int m = month;
     int y = 2000 + year;
@@ -1076,10 +1076,10 @@ void rtc_time_set(const char *date, const char *time)
     }
 
     int dow = (d + (13 * (m + 1)) / 5 + y + y / 4 - y / 100 + y / 400) % 7;
-    // Conversione: 0=Sab, 1=Dom, 2=Lun, ... -> 1=Dom, 2=Lun, ..., 7=Sab
+    // Convert: 0=Sat, 1=Sun, 2=Mon, ... -> 1=Sun, 2=Mon, ..., 7=Sat
     dow = (dow == 0) ? 7 : dow;
 
-    // Prepara la struttura datetime
+    // Prepare datetime structure
     dt.seconds = seconds;
     dt.minutes = minutes;
     dt.hours = hours;
@@ -1088,17 +1088,17 @@ void rtc_time_set(const char *date, const char *time)
     dt.month = month;
     dt.year = year;
 
-    // Scrivi sul DS3231
+    // Write to DS3231
     if (!ds3231_write_time(&dt))
     {
-        printf("Errore nella scrittura dell'RTC DS3231.\n");
+        printf("Error writing to DS3231 RTC.\n");
         return;
     }
 
-    printf("RTC DS3231 configurato:\n");
-    printf("Data: %s %02d/%02d/20%02d\n",
+    printf("DS3231 RTC configured:\n");
+    printf("Date: %s %02d/%02d/20%02d\n",
            day_names[dt.day], dt.date, dt.month, dt.year);
-    printf("Ora:  %02d:%02d:%02d\n",
+    printf("Time: %02d:%02d:%02d\n",
            dt.hours, dt.minutes, dt.seconds);
 }
 
@@ -1108,7 +1108,7 @@ void rtc_time_set(const char *date, const char *time)
 
 void hexdump(void)
 {
-    printf("Errore: Nessun file specificato.\n");
+    printf("Error: No file specified.\n");
     printf("Uso: hexdump <filename>\n");
     printf("Esempio: hexdump image.raw\n");
     printf("Mostra il contenuto esadecimale\ndi un file.\n");
@@ -1118,7 +1118,7 @@ void hexdump_filename(const char *filename)
 {
     if (filename == NULL || strlen(filename) == 0)
     {
-        printf("Errore: Nessun file specificato.\n");
+        printf("Error: No file specified.\n");
         printf("Uso: hexdump <filename>\n");
         return;
     }
@@ -1126,7 +1126,7 @@ void hexdump_filename(const char *filename)
     FILE *fp = fopen(filename, "rb");
     if (fp == NULL)
     {
-        printf("Impossibile aprire il file '%s':\n%s\n", filename, strerror(errno));
+        printf("Cannot open file '%s':\n%s\n", filename, strerror(errno));
         return;
     }
 
@@ -1183,7 +1183,7 @@ void hexdump_filename(const char *filename)
         // Pausa ogni 30 righe per evitare scrolling
         if (line_count > 0 && line_count % 30 == 0 && !feof(fp))
         {
-            printf("Premi un tasto per continuare\n(o 'q' per uscire)...");
+            printf("Press any key to continue\n(or 'q' to quit)...");
             char ch = getchar();
             if (ch == 'q' || ch == 'Q')
             {
@@ -1204,7 +1204,7 @@ void hexdump_filename(const char *filename)
 
 void showimg(void)
 {
-    printf("Errore: Nessun file specificato.\n");
+    printf("Error: No file specified.\n");
     printf("Uso: showimg <filename>\n");
     printf("Esempio: showimg image.raw\n");
     printf("\nFormato file RAW RGB565:\n");
@@ -1217,7 +1217,7 @@ void showimg_filename(const char *filename)
 {
     if (filename == NULL || strlen(filename) == 0)
     {
-        printf("Errore: Nessun file specificato.\n");
+        printf("Error: No file specified.\n");
         printf("Uso: showimg <filename>\n");
         return;
     }
@@ -1225,55 +1225,55 @@ void showimg_filename(const char *filename)
     FILE *fp = fopen(filename, "rb");
     if (fp == NULL)
     {
-        printf("Impossibile aprire il file '%s':\n%s\n", filename, strerror(errno));
+        printf("Cannot open file '%s':\n%s\n", filename, strerror(errno));
         return;
     }
 
-    // Leggi header (larghezza e altezza) - formato little-endian
+    // Read header (width and height) - little-endian format
     uint16_t img_width, img_height;
     uint8_t header_bytes[4];
 
-    // Leggi 4 bytes dell'header
+    // Read 4 bytes of header
     if (fread(header_bytes, 1, 4, fp) != 4)
     {
-        printf("Errore: File troppo piccolo o corrotto.\n");
+        printf("Error: File too small or corrupted.\n");
         fclose(fp);
         return;
     }
 
-    // Converti da little-endian a uint16_t
+    // Convert from little-endian to uint16_t
     img_width = header_bytes[0] | (header_bytes[1] << 8);
     img_height = header_bytes[2] | (header_bytes[3] << 8);
 
-    // Validazione dimensioni
+    // Validate dimensions
     if (img_width == 0 || img_height == 0 || img_width > WIDTH || img_height > HEIGHT)
     {
-        printf("Errore: Dimensioni non valide.\n");
-        printf("Massimo: %dx%d pixel\n", WIDTH, HEIGHT);
+        printf("Error: Invalid dimensions.\n");
+        printf("Maximum: %dx%d pixels\n", WIDTH, HEIGHT);
         fclose(fp);
         return;
     }
 
-    // Alloca buffer per una riga alla volta (per risparmiare memoria)
+    // Allocate buffer for one line at a time (to save memory)
     uint16_t *line_buffer = (uint16_t *)malloc(img_width * sizeof(uint16_t));
     if (line_buffer == NULL)
     {
-        printf("Errore: Memoria insufficiente.\n");
+        printf("Error: Insufficient memory.\n");
         fclose(fp);
         return;
     }
 
-    // Centra l'immagine sullo schermo
+    // Center image on screen
     uint16_t x_offset = (WIDTH - img_width) / 2;
     uint16_t y_offset = (HEIGHT - img_height) / 2;
 
-    // Nascondi il cursore
+    // Hide cursor
     lcd_enable_cursor(false);
 
-    // Pulisci lo schermo (nero)
+    // Clear screen (black)
     lcd_solid_rectangle(0x0000, 0, 0, WIDTH, HEIGHT);
 
-    // Leggi e disegna riga per riga
+    // Read and draw line by line
     for (uint16_t y = 0; y < img_height; y++)
     {
         size_t pixels_read = fread(line_buffer, sizeof(uint16_t), img_width, fp);
@@ -1282,17 +1282,17 @@ void showimg_filename(const char *filename)
             break;
         }
 
-        // Disegna la riga sullo schermo
+        // Draw line on screen
         lcd_blit(line_buffer, x_offset, y_offset + y, img_width, 1);
     }
 
     free(line_buffer);
     fclose(fp);
 
-    // Aspetta input utente
+    // Wait for user input
     getchar();
 
-    // Ripristina schermo di testo e cursore
+    // Restore text screen and cursor
     lcd_clear_screen();
     lcd_enable_cursor(true);
 }

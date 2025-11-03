@@ -28,62 +28,62 @@
 #define DS3231_SCL_PIN          7
 #define DS3231_I2C_BAUDRATE     100000  // 100 kHz
 
-// Struttura per data e ora
+// Structure for date and time
 typedef struct {
     uint8_t seconds;    // 0-59
     uint8_t minutes;    // 0-59
-    uint8_t hours;      // 0-23 (formato 24 ore)
-    uint8_t day;        // 1-7 (giorno della settimana)
-    uint8_t date;       // 1-31 (giorno del mese)
+    uint8_t hours;      // 0-23 (24-hour format)
+    uint8_t day;        // 1-7 (day of week)
+    uint8_t date;       // 1-31 (day of month)
     uint8_t month;      // 1-12
-    uint8_t year;       // 0-99 (anno dal 2000)
+    uint8_t year;       // 0-99 (year from 2000)
 } ds3231_datetime_t;
 
 /**
- * @brief Inizializza il dispositivo DS3231 sulla porta I2C1
+ * @brief Initialize DS3231 device on I2C1 port
  *
- * Configura i pin GP6 (SDA) e GP7 (SCL) per I2C1 e inizializza
- * la comunicazione con il DS3231 a 100 kHz.
+ * Configure pins GP6 (SDA) and GP7 (SCL) for I2C1 and initialize
+ * communication with DS3231 at 100 kHz.
  *
- * @return true se l'inizializzazione è riuscita, false altrimenti
+ * @return true if initialization succeeded, false otherwise
  */
 bool ds3231_init(void);
 
 /**
- * @brief Legge data e ora dal DS3231
+ * @brief Read date and time from DS3231
  *
- * Legge tutti i registri del tempo dal DS3231 e li converte
- * dal formato BCD al formato decimale.
+ * Read all time registers from DS3231 and convert them
+ * from BCD format to decimal format.
  *
- * @param datetime Puntatore alla struttura dove salvare data e ora
- * @return true se la lettura è riuscita, false altrimenti
+ * @param datetime Pointer to structure where date and time will be saved
+ * @return true if read succeeded, false otherwise
  */
 bool ds3231_read_time(ds3231_datetime_t *datetime);
 
 /**
- * @brief Scrive data e ora nel DS3231
+ * @brief Write date and time to DS3231
  *
- * Converte i valori dalla struttura dal formato decimale al formato BCD
- * e li scrive nei registri del DS3231.
+ * Convert values from structure from decimal format to BCD format
+ * and write them to DS3231 registers.
  *
- * @param datetime Puntatore alla struttura contenente data e ora da impostare
- * @return true se la scrittura è riuscita, false altrimenti
+ * @param datetime Pointer to structure containing date and time to set
+ * @return true if write succeeded, false otherwise
  */
 bool ds3231_write_time(const ds3231_datetime_t *datetime);
 
 /**
- * @brief Converte un valore BCD in decimale
+ * @brief Convert BCD value to decimal
  *
- * @param bcd Valore in formato BCD
- * @return Valore in formato decimale
+ * @param bcd Value in BCD format
+ * @return Value in decimal format
  */
 uint8_t bcd_to_dec(uint8_t bcd);
 
 /**
- * @brief Converte un valore decimale in BCD
+ * @brief Convert decimal value to BCD
  *
- * @param dec Valore in formato decimale
- * @return Valore in formato BCD
+ * @param dec Value in decimal format
+ * @return Value in BCD format
  */
 uint8_t dec_to_bcd(uint8_t dec);
 
