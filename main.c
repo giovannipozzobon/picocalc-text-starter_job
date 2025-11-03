@@ -16,6 +16,13 @@
 
 bool power_off_requested = false;
 
+// Command history
+#define HISTORY_SIZE 10
+#define HISTORY_BUFFER_SIZE 40
+static char history[HISTORY_SIZE][HISTORY_BUFFER_SIZE];
+static int history_count = 0;
+static int history_index = 0;
+
 void set_onboard_led(uint8_t led)
 {
     led_set(led & 0x01);
@@ -33,6 +40,9 @@ void str_to_lower(char *s) {
 void readline(char *buffer, size_t size)
 {
     size_t index = 0;
+    int history_pos = -1; // -1 significa "nessuna navigazione history"
+    char temp_buffer[HISTORY_BUFFER_SIZE] = {0}; // Buffer temporaneo per il comando corrente
+
     while (true)
     {
         char ch = getchar();
@@ -45,6 +55,62 @@ void readline(char *buffer, size_t size)
         {
             printf("\n");
             break; // End of line
+        }
+        else if (ch == KEY_UP) // Freccia SU - naviga history verso l'alto
+        {
+            if (history_count == 0) continue;
+
+            // Salva il comando corrente la prima volta
+            if (history_pos == -1)
+            {
+                strncpy(temp_buffer, buffer, HISTORY_BUFFER_SIZE - 1);
+                history_pos = history_count;
+            }
+
+            if (history_pos > 0)
+            {
+                history_pos--;
+
+                // Cancella la riga corrente
+                while (index > 0)
+                {
+                    printf("\b \b");
+                    index--;
+                }
+
+                // Copia e mostra il comando dalla history
+                strncpy(buffer, history[history_pos], size - 1);
+                buffer[size - 1] = '\0';
+                index = strlen(buffer);
+                printf("%s", buffer);
+            }
+        }
+        else if (ch == KEY_DOWN) // Freccia GIÙ - naviga history verso il basso
+        {
+            if (history_pos == -1) continue;
+
+            // Cancella la riga corrente
+            while (index > 0)
+            {
+                printf("\b \b");
+                index--;
+            }
+
+            if (history_pos < history_count - 1)
+            {
+                history_pos++;
+                strncpy(buffer, history[history_pos], size - 1);
+            }
+            else
+            {
+                // Torna al comando che stava scrivendo
+                history_pos = -1;
+                strncpy(buffer, temp_buffer, size - 1);
+            }
+
+            buffer[size - 1] = '\0';
+            index = strlen(buffer);
+            printf("%s", buffer);
         }
         else if ((ch == 0x08 || ch == 0x7F) && index > 0) // Backspace or Delete
         {
@@ -59,6 +125,25 @@ void readline(char *buffer, size_t size)
         }
     }
     buffer[index] = '\0'; // Null-terminate the string
+
+    // Aggiungi il comando alla history se non è vuoto e diverso dall'ultimo
+    if (index > 0 && (history_count == 0 || strcmp(buffer, history[history_count - 1]) != 0))
+    {
+        // Se la history è piena, sposta tutti gli elementi indietro
+        if (history_count >= HISTORY_SIZE)
+        {
+            for (int i = 0; i < HISTORY_SIZE - 1; i++)
+            {
+                strncpy(history[i], history[i + 1], HISTORY_BUFFER_SIZE - 1);
+            }
+            history_count = HISTORY_SIZE - 1;
+        }
+
+        // Aggiungi il nuovo comando
+        strncpy(history[history_count], buffer, HISTORY_BUFFER_SIZE - 1);
+        history[history_count][HISTORY_BUFFER_SIZE - 1] = '\0';
+        history_count++;
+    }
 }
 
 int main()
