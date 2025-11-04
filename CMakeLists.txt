@@ -81,7 +81,7 @@ pico_generate_pio_header(picocalc-text-starter ${CMAKE_CURRENT_LIST_DIR}/drivers
 
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_uart(picocalc-text-starter 0)
-pico_enable_stdio_usb(picocalc-text-starter 0)
+pico_enable_stdio_usb(picocalc-text-starter 1)
 
 # Turn on all warnings
 target_compile_options(picocalc-text-starter PRIVATE -Wall )

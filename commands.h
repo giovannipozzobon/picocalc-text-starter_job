@@ -67,4 +67,3 @@ void viewtext_filename(const char *filename);
 // Image display commands
 void showimg(void);
 void showimg_filename(const char *filename);
-
