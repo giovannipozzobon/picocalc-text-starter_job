@@ -1222,21 +1222,21 @@ void hexdump_filename(const char *filename)
 
 
 void sprite_frame(int16_t *sx, int16_t *velocity) {
-    /* in loop: sposti lo sprite e fai present */
+    /* in loop: move sprite and present */
 
-    // Aggiorna posizione
+    // Update position
     *sx += *velocity;
 
-    // Controlla i bordi e inverte la direzione
-    // WIDTH è definito in lcd.h (larghezza dello schermo)
-    // Lo sprite è 16x16 pixel, quindi si ferma a WIDTH - 16
+    // Check borders and reverse direction
+    // WIDTH is defined in lcd.h (screen width)
+    // Sprite is 16x16 pixels, so it stops at WIDTH - 16
     if (*sx >= WIDTH - 16) {
         *sx = WIDTH - 16;
-        *velocity = -1; // inverti direzione verso sinistra
+        *velocity = -1; // reverse direction to left
     }
     else if (*sx <= 0) {
         *sx = 0;
-        *velocity = 1; // inverti direzione verso destra
+        *velocity = 1; // reverse direction to right
     }
 
     gfx_move_sprite(s, *sx, 40);
@@ -1245,35 +1245,66 @@ void sprite_frame(int16_t *sx, int16_t *velocity) {
 
 void show_sprite(void)
 {
-    // Variabili locali per posizione e velocità dello sprite
+    // Local variables for sprite position and velocity
     int16_t sx = 40;
     int16_t velocity = 1;
 
     // Hide cursor
     lcd_enable_cursor(false);
-    /* inizializza gfx con tilesheet */
-    gfx_init(my_tilesheet, 128); /* ad esempio 128 tiles */
+    /* initialize gfx with tilesheet */
+    gfx_init(my_tilesheet, 8); /* 8 tiles defined in tiles_sprites.h */
 
-    /* prepara la mappa: riempi con tile 0 */
-    gfx_clear_backmap(0);
+    /* prepare map: create a complete scene */
+    gfx_clear_backmap(0);  // sky as background
 
-    /* posiziona alcuni tile */
-    gfx_set_tile(2, 3, 5);
-    gfx_set_tile(3, 3, 6);
+    // Create floor at bottom (rows 18-19, screen 320x320 = 20x20 tiles)
+    for (uint16_t x = 0; x < 20; x++) {
+        gfx_set_tile(x, 18, 1);  // grass
+        gfx_set_tile(x, 19, 2);  // dirt below grass
+    }
 
-    /* crea uno sprite (w=16,h=16) */
+    // Create central platform with brick wall
+    for (uint16_t x = 5; x <= 10; x++) {
+        gfx_set_tile(x, 14, 3);  // red bricks
+        gfx_set_tile(x, 15, 3);  // red bricks
+    }
+
+    // Gray floor on platform
+    for (uint16_t x = 5; x <= 10; x++) {
+        gfx_set_tile(x, 13, 4);  // gray floor
+    }
+
+    // Water on right
+    for (uint16_t y = 16; y <= 19; y++) {
+        for (uint16_t x = 15; x <= 19; x++) {
+            gfx_set_tile(x, y, 6);  // water
+        }
+    }
+
+    // Sand near water
+    for (uint16_t y = 16; y <= 19; y++) {
+        gfx_set_tile(14, y, 7);  // sand
+    }
+
+    // Stone wall on left
+    for (uint16_t y = 15; y <= 19; y++) {
+        gfx_set_tile(0, y, 5);  // stone wall
+        gfx_set_tile(1, y, 5);  // stone wall
+    }
+
+    /* create sprite (w=16,h=16) */
     s = gfx_create_sprite(sprite1_pixels, 16, 16, sx, 40, 0);
 
-    /* present: disegna tiles modificate e sprite */
+    /* present: draw modified tiles and sprite */
     gfx_present();
 
-    // Loop continuo fino a quando l'utente preme un tasto
+    // Continuous loop until user presses a key
     while (true) {
-        // Controlla se c'è un tasto premuto dalla tastiera fisica (non bloccante)
+        // Check if a key is pressed from physical keyboard (non-blocking)
         if (keyboard_key_available()){
             int key = keyboard_get_key();
             if (key != -1) {
-                // L'utente ha premuto un tasto, esci dal loop
+                // User pressed a key, exit loop
                 break;
             }
         }

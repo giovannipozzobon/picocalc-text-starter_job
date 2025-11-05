@@ -9,7 +9,7 @@
    - dirty flags per tile optional (we use compare to reduce memory)
 */
 
-#define GFX_BACKGROUND_COLOR 0x0000  // nero
+#define GFX_BACKGROUND_COLOR 0x0000  // black
 
 static const uint16_t background = GFX_BACKGROUND_COLOR;
 static const uint16_t *tilesheet = NULL;
