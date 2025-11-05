@@ -23,6 +23,7 @@
 #include "commands.h"
 #include "gfx.h"
 #include "tiles_sprites.h"
+#include "tiles.h"
 
 static gfx_sprite_t s;
 
@@ -1245,33 +1246,33 @@ void sprite_frame(int16_t *sx, int16_t *velocity) {
 
 void show_sprite(void)
 {
-    // Local variables for sprite position and velocity
+    // Local variables for sprite position
     int16_t sx = 40;
-    int16_t velocity = 1;
+    int16_t sy = 40;
 
     // Hide cursor
     lcd_enable_cursor(false);
-    /* initialize gfx with tilesheet */
-    gfx_init(my_tilesheet, 8); /* 8 tiles defined in tiles_sprites.h */
+    /* initialize gfx with tilesheet from tiles.h */
+    gfx_init(my_tilesheet, my_tilesheet_count);
 
     /* prepare map: create a complete scene */
-    gfx_clear_backmap(0);  // sky as background
+    gfx_clear_backmap(34);  // sky as background
 
     // Create floor at bottom (rows 18-19, screen 320x320 = 20x20 tiles)
     for (uint16_t x = 0; x < 20; x++) {
-        gfx_set_tile(x, 18, 1);  // grass
-        gfx_set_tile(x, 19, 2);  // dirt below grass
+        gfx_set_tile(x, 18, 0);  // grass
+        gfx_set_tile(x, 19, 0);  // dirt below grass
     }
 
     // Create central platform with brick wall
     for (uint16_t x = 5; x <= 10; x++) {
-        gfx_set_tile(x, 14, 3);  // red bricks
-        gfx_set_tile(x, 15, 3);  // red bricks
+        gfx_set_tile(x, 14, 90);  // red bricks
+        gfx_set_tile(x, 15, 90);  // red bricks
     }
 
     // Gray floor on platform
     for (uint16_t x = 5; x <= 10; x++) {
-        gfx_set_tile(x, 13, 4);  // gray floor
+        gfx_set_tile(x, 13, 48);  // gray floor
     }
 
     // Water on right
@@ -1283,33 +1284,55 @@ void show_sprite(void)
 
     // Sand near water
     for (uint16_t y = 16; y <= 19; y++) {
-        gfx_set_tile(14, y, 7);  // sand
+        gfx_set_tile(14, y, 122);  // sand
     }
 
     // Stone wall on left
     for (uint16_t y = 15; y <= 19; y++) {
-        gfx_set_tile(0, y, 5);  // stone wall
-        gfx_set_tile(1, y, 5);  // stone wall
+        gfx_set_tile(0, y, 30);  // stone wall
+        gfx_set_tile(1, y, 30);  // stone wall
     }
 
     /* create sprite (w=16,h=16) */
-    s = gfx_create_sprite(sprite1_pixels, 16, 16, sx, 40, 0);
+    s = gfx_create_sprite(sprite1_pixels, 16, 16, sx, sy, 0);
 
     /* present: draw modified tiles and sprite */
     gfx_present();
 
-    // Continuous loop until user presses a key
+    // Continuous loop until user presses ESC
     while (true) {
         // Check if a key is pressed from physical keyboard (non-blocking)
         if (keyboard_key_available()){
             int key = keyboard_get_key();
             if (key != -1) {
-                // User pressed a key, exit loop
-                break;
+                // Handle key press
+                if (key == KEY_ESC) {  // ESC key
+                    break;
+                }
+                // Arrow keys
+                else if (key == KEY_UP) {  // UP arrow
+                    sy -= 2;
+                    if (sy < 0) sy = 0;
+                }
+                else if (key == KEY_DOWN) {  // DOWN arrow
+                    sy += 2;
+                    if (sy > HEIGHT - 16) sy = HEIGHT - 16;
+                }
+                else if (key == KEY_RIGHT) {  // RIGHT arrow
+                    sx += 2;
+                    if (sx > WIDTH - 16) sx = WIDTH - 16;
+                }
+                else if (key == KEY_LEFT) {  // LEFT arrow
+                    sx -= 2;
+                    if (sx < 0) sx = 0;
+                }
+
+                // Update sprite position
+                gfx_move_sprite(s, sx, sy);
+                gfx_present();
             }
         }
 
-        sprite_frame(&sx, &velocity);
         sleep_ms(16);  // ~60 FPS
     }
 

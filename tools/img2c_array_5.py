@@ -259,7 +259,7 @@ def main():
                    help="Compensa l'aspect ratio dei pixel (es: 2.67 per AgonLight 2)")
     parser.add_argument("input", help="Input PNG/JPEG image")
     parser.add_argument("-o","--output", help="Output .h file", default="output.h")
-    parser.add_argument("-f","--format", choices=["RGBA8888","RGBA2222","RGB565","PICOCALC_FONT"], default="RGBA8888")
+    parser.add_argument("-f","--format", choices=["RGBA8888","RGBA2222","RGB565","PICOCALC_FONT","GFX_TILES"], default="RGBA8888")
     parser.add_argument("-w","--width", type=int, default=16)
     parser.add_argument("-h","--height", type=int, default=16)
     parser.add_argument("--single-array", action="store_true")
@@ -298,7 +298,7 @@ def main():
     if args.format == "PICOCALC_FONT":
         # Converti in grayscale per il font
         img_gray = img.convert('L')
-        
+
         font_data = generate_picocalc_font(
             img_gray,
             args.width,
@@ -307,7 +307,7 @@ def main():
             args.font_end_char,
             args.font_threshold
         )
-        
+
         with open(args.output, "w") as f:
             f.write(f"#ifndef {header_guard}\n#define {header_guard}\n\n")
             f.write(f"#include <stdint.h>\n")
@@ -315,15 +315,80 @@ def main():
             f.write(f"// Generated from {args.input}\n")
             f.write(f"// Glyph size: {args.width}x{args.height} pixels\n")
             f.write(f"// Threshold: {args.font_threshold}\n\n")
-            
+
             write_picocalc_font(f, basename, font_data)
-            
+
             f.write("#endif\n")
-        
+
         print(f"[OK] Generated Picocalc font: {args.output}")
         print(f"[INFO] Glyph size: {args.width}x{args.height}")
         print(f"[INFO] Characters: {args.font_start_char}-{args.font_end_char} ({args.font_end_char - args.font_start_char + 1} total)")
         print(f"[INFO] Threshold: {args.font_threshold}")
+        return
+
+    # Gestione speciale per GFX_TILES (compatibile con tiles_sprites.h)
+    if args.format == "GFX_TILES":
+        img_w, img_h = img.size
+        tiles_x = math.ceil(img_w/args.width)
+        tiles_y = math.ceil(img_h/args.height)
+        total_tiles = tiles_x * tiles_y
+
+        with open(args.output, "w") as f:
+            f.write(f"#ifndef {header_guard}\n#define {header_guard}\n\n")
+            f.write(f"#include <stdint.h>\n")
+            f.write(f'#include "gfx.h"\n\n')
+            f.write(f"/*\n")
+            f.write(f"   ======================================================================\n")
+            f.write(f"   TILESET ({total_tiles} tiles, {args.width}x{args.height} RGB565)\n")
+            f.write(f"   ----------------------------------------------------------------------\n")
+            f.write(f"   Generated from {args.input}\n")
+            f.write(f"   ======================================================================\n")
+            f.write(f"*/\n\n")
+            f.write(f"#define C16(r,g,b)  (((r&0x1F)<<11)|((g&0x3F)<<5)|((b&0x1F)<<0))\n\n")
+            f.write(f"static const uint16_t {basename}_tilesheet[] = {{\n")
+
+            tile_index = 0
+            for ty in range(tiles_y):
+                for tx in range(tiles_x):
+                    f.write(f"\n    /* === Tile {tile_index} === */\n")
+
+                    # Estrai la tile
+                    tile = img.crop((tx*args.width, ty*args.height,
+                                    tx*args.width+args.width, ty*args.height+args.height))
+                    pixels = list(tile.getdata())
+
+                    # Scrivi i pixel in formato RGB565
+                    for row in range(args.height):
+                        f.write("    ")
+                        for col in range(args.width):
+                            px = pixels[row * args.width + col]
+                            rgb565 = to_rgb565(px, "RGB", False)
+
+                            # Calcola i componenti RGB a 5/6 bit
+                            r5 = (rgb565 >> 11) & 0x1F
+                            g6 = (rgb565 >> 5) & 0x3F
+                            b5 = rgb565 & 0x1F
+
+                            f.write(f"C16({r5},{g6},{b5})")
+
+                            # Aggiungi virgola se non è l'ultimo pixel
+                            is_last_pixel = (tile_index == total_tiles - 1 and
+                                           row == args.height - 1 and
+                                           col == args.width - 1)
+                            if not is_last_pixel:
+                                f.write(",")
+                        f.write("\n")
+
+                    tile_index += 1
+
+            f.write("};\n\n")
+            f.write(f"static const uint16_t {basename}_tilesheet_count = {total_tiles};\n\n")
+            f.write("#endif\n")
+
+        print(f"[OK] Generated GFX tileset: {args.output}")
+        print(f"[INFO] Tile size: {args.width}x{args.height} pixels")
+        print(f"[INFO] Total tiles: {total_tiles} ({tiles_x}x{tiles_y})")
+        print(f"[INFO] Format: RGB565 (compatible with tiles_sprites.h)")
         return
     
     new_width = args.width 
