@@ -22,8 +22,11 @@
 #include "tests.h"
 #include "commands.h"
 #include "gfx.h"
-#include "tiles_sprites.h"
+#include "sprites.h"
 #include "tiles.h"
+
+#define STEP_Y 2
+#define STEP_X 2
 
 static gfx_sprite_t s;
 
@@ -1311,19 +1314,19 @@ void show_sprite(void)
                 }
                 // Arrow keys
                 else if (key == KEY_UP) {  // UP arrow
-                    sy -= 2;
+                    sy -= STEP_Y;
                     if (sy < 0) sy = 0;
                 }
                 else if (key == KEY_DOWN) {  // DOWN arrow
-                    sy += 2;
+                    sy += STEP_Y;
                     if (sy > HEIGHT - 16) sy = HEIGHT - 16;
                 }
                 else if (key == KEY_RIGHT) {  // RIGHT arrow
-                    sx += 2;
+                    sx += STEP_X;
                     if (sx > WIDTH - 16) sx = WIDTH - 16;
                 }
                 else if (key == KEY_LEFT) {  // LEFT arrow
-                    sx -= 2;
+                    sx -= STEP_X;
                     if (sx < 0) sx = 0;
                 }
 
@@ -1333,7 +1336,7 @@ void show_sprite(void)
             }
         }
 
-        sleep_ms(16);  // ~60 FPS
+        //sleep_ms(16);  // ~60 FPS
     }
 
     // Destroy sprite before cleanup
