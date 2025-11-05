@@ -67,3 +67,7 @@ void viewtext_filename(const char *filename);
 // Image display commands
 void showimg(void);
 void showimg_filename(const char *filename);
+
+// Sprite tesr
+void show_sprite(void);
+void sprite_frame(int16_t *sx, int16_t *velocity);

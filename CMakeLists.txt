@@ -70,6 +70,9 @@ add_executable(picocalc-text-starter
         drivers/southbridge.c
         wifi.c
         wifi.h
+        gfx.h
+        gfx.c
+        tiles_sprites.h
         )
 
 pico_set_program_name(picocalc-text-starter "picocalc-text-starter")

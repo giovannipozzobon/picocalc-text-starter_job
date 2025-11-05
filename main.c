@@ -152,6 +152,7 @@ void readline(char *buffer, size_t size)
     }
 }
 
+
 int main()
 {
     char buffer[40];

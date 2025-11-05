@@ -21,6 +21,10 @@
 #include "songs.h"
 #include "tests.h"
 #include "commands.h"
+#include "gfx.h"
+#include "tiles_sprites.h"
+
+static gfx_sprite_t s;
 
 volatile bool user_interrupt = false;
 extern void readline(char *buffer, size_t size);
@@ -57,6 +61,7 @@ static const command_t commands[] = {
     {"viewtext", viewtext, "View text file with scrolling"},
     {"width", width, "Set number of columns"},
     {"help", show_command_library, "Show this help message"},
+    {"sprite", show_sprite, "Show the Sprite test"},
     {NULL, NULL, NULL} // Sentinel to mark end of array
 };
 
@@ -279,6 +284,10 @@ void run_command(const char *command)
             else if (strcmp(cmd_args[0], "viewtext") == 0 && cmd_args[1] != NULL)
             {
                 viewtext_filename(condense(cmd_args[1]));
+            }
+            else if (strcmp(cmd_args[0], "show_sprite") == 0 && cmd_args[1] != NULL)
+                        {
+                show_sprite();
             }
             else
             {
@@ -1205,6 +1214,83 @@ void hexdump_filename(const char *filename)
     fclose(fp);
     printf("\nFine file. %ld bytes totali.\n", file_size);
 }
+
+
+//
+// Sprite Test
+//
+
+
+void sprite_frame(int16_t *sx, int16_t *velocity) {
+    /* in loop: sposti lo sprite e fai present */
+
+    // Aggiorna posizione
+    *sx += *velocity;
+
+    // Controlla i bordi e inverte la direzione
+    // WIDTH è definito in lcd.h (larghezza dello schermo)
+    // Lo sprite è 16x16 pixel, quindi si ferma a WIDTH - 16
+    if (*sx >= WIDTH - 16) {
+        *sx = WIDTH - 16;
+        *velocity = -1; // inverti direzione verso sinistra
+    }
+    else if (*sx <= 0) {
+        *sx = 0;
+        *velocity = 1; // inverti direzione verso destra
+    }
+
+    gfx_move_sprite(s, *sx, 40);
+    gfx_present();
+}
+
+void show_sprite(void)
+{
+    // Variabili locali per posizione e velocità dello sprite
+    int16_t sx = 40;
+    int16_t velocity = 1;
+
+    // Hide cursor
+    lcd_enable_cursor(false);
+    /* inizializza gfx con tilesheet */
+    gfx_init(my_tilesheet, 128); /* ad esempio 128 tiles */
+
+    /* prepara la mappa: riempi con tile 0 */
+    gfx_clear_backmap(0);
+
+    /* posiziona alcuni tile */
+    gfx_set_tile(2, 3, 5);
+    gfx_set_tile(3, 3, 6);
+
+    /* crea uno sprite (w=16,h=16) */
+    s = gfx_create_sprite(sprite1_pixels, 16, 16, sx, 40, 0);
+
+    /* present: disegna tiles modificate e sprite */
+    gfx_present();
+
+    // Loop continuo fino a quando l'utente preme un tasto
+    while (true) {
+        // Controlla se c'è un tasto premuto dalla tastiera fisica (non bloccante)
+        if (keyboard_key_available()){
+            int key = keyboard_get_key();
+            if (key != -1) {
+                // L'utente ha premuto un tasto, esci dal loop
+                break;
+            }
+        }
+
+        sprite_frame(&sx, &velocity);
+        sleep_ms(16);  // ~60 FPS
+    }
+
+    // Destroy sprite before cleanup
+    gfx_destroy_sprite(s);
+
+    // Restore text screen and cursor
+    lcd_clear_screen();
+    lcd_enable_cursor(true);
+
+}
+
 
 //
 // Image Display Commands
