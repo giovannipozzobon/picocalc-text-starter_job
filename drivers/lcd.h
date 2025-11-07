@@ -117,3 +117,6 @@ bool lcd_cursor_enabled(void);
 void lcd_clear_screen(void);
 void lcd_erase_line(uint8_t row, uint8_t col_start, uint8_t col_end);
 void lcd_init(void);
+
+// Debug functions
+uint32_t lcd_get_dma_irq_count(void);

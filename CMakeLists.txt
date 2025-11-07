@@ -72,7 +72,7 @@ add_executable(picocalc-text-starter
         wifi.h
         gfx.h
         gfx.c
-        tiles_sprites.h
+        sprites.h
         )
 
 pico_set_program_name(picocalc-text-starter "picocalc-text-starter")
