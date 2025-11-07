@@ -72,6 +72,8 @@ add_executable(picocalc-text-starter
         wifi.h
         gfx.h
         gfx.c
+        gfx_core.h
+        gfx_core.c
         sprites.h
         )
 
@@ -114,7 +116,9 @@ target_link_libraries(picocalc-text-starter
         hardware_spi
         hardware_pio
         hardware_timer
+        hardware_dma
         pico_time
+        pico_multicore
         pico_cyw43_arch_lwip_poll
         )
 
