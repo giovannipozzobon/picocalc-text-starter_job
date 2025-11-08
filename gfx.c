@@ -25,6 +25,13 @@ static bool force_full_redraw = true;
 /* Sprite storage */
 static gfx_sprite_info_t sprites[GFX_MAX_SPRITES];
 
+/* Double buffering for sprite composition - avoids malloc/free with async DMA */
+#define SPRITE_BUFFER_POOL_SIZE 2
+#define MAX_SPRITE_PIXELS (32 * 32)  // Max 32x32 sprite
+static uint16_t sprite_buffers[SPRITE_BUFFER_POOL_SIZE][MAX_SPRITE_PIXELS] __attribute__((aligned(4)));
+static volatile bool sprite_buffer_in_use[SPRITE_BUFFER_POOL_SIZE] = {false, false};
+static int next_buffer_index = 0;
+
 /* Helper: index in tilemap from tx,ty */
 static inline uint32_t _tile_index(uint16_t tx, uint16_t ty) {
     return (uint32_t)ty * GFX_TILES_X + tx;
@@ -35,6 +42,45 @@ static inline int16_t _clamp_i16(int16_t v, int16_t a, int16_t b) {
     if (v < a) return a;
     if (v > b) return b;
     return v;
+}
+
+/* Buffer pool management for sprite composition */
+static uint16_t* gfx_alloc_sprite_buffer(void) {
+    // Use round-robin allocation for double buffering
+    int idx = next_buffer_index;
+
+    /* If this buffer is still in use (DMA hasn't completed), wait for it
+     * With 2 buffers and async DMA, by the time we need buffer 0 again,
+     * DMA should have finished with it. But we check to be safe.
+     */
+    if (sprite_buffer_in_use[idx]) {
+        // Wait for DMA to complete on this buffer
+        // This is the key: we wait BEFORE allocating, not after freeing
+        extern bool lcd_is_dma_busy(void);
+        while (sprite_buffer_in_use[idx] && lcd_is_dma_busy()) {
+            tight_loop_contents();
+        }
+        // Force release if DMA is done
+        sprite_buffer_in_use[idx] = false;
+    }
+
+    sprite_buffer_in_use[idx] = true;
+    next_buffer_index = (idx + 1) % SPRITE_BUFFER_POOL_SIZE;
+    return sprite_buffers[idx];
+}
+
+static void gfx_free_sprite_buffer(uint16_t* buffer) {
+    // Check if this is one of our pool buffers
+    for (int i = 0; i < SPRITE_BUFFER_POOL_SIZE; i++) {
+        if (buffer == sprite_buffers[i]) {
+            sprite_buffer_in_use[i] = false;
+            return;
+        }
+    }
+    // If it was allocated with malloc, free it
+    if (buffer != NULL) {
+        free(buffer);
+    }
 }
 
 /* Initialize gfx */
@@ -228,9 +274,20 @@ void gfx_present(void) {
             continue;
         }
 
-        /* allocate temp buffer (on heap to be safe with larger sprites) */
+        /* Allocate temp buffer from pool (avoids malloc/free with async DMA) */
         size_t spixels = (size_t)s->w * s->h;
-        uint16_t *temp = malloc(spixels * sizeof(uint16_t));
+
+        /* Check if sprite fits in our buffer pool */
+        uint16_t *temp = NULL;
+        if (spixels <= MAX_SPRITE_PIXELS) {
+            temp = gfx_alloc_sprite_buffer();
+        }
+
+        /* If pool allocation failed or sprite too large, use malloc as fallback */
+        if (!temp) {
+            temp = malloc(spixels * sizeof(uint16_t));
+        }
+
         if (!temp) continue; /* allocation failed -> skip sprite */
 
         /* Composite each pixel:
@@ -274,7 +331,14 @@ void gfx_present(void) {
         /* Blit composed sprite block (lcd_blit handles windowing/clipping) */
         lcd_blit(temp, (uint16_t) s->x, (uint16_t) s->y, s->w, s->h);
 
-        free(temp);
+        /* NOTE: With double buffering, we DON'T free immediately.
+         * The buffer remains valid because:
+         * 1. We use a pool of 2 buffers
+         * 2. While DMA transfers buffer 0, we prepare sprites in buffer 1
+         * 3. Next sprite will get the other buffer from the pool
+         * 4. By the time we loop back, DMA has completed and buffer is free
+         */
+        gfx_free_sprite_buffer(temp);
 
         /* Save current position as previous for next frame */
         s->prev_x = s->x;

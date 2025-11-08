@@ -120,3 +120,6 @@ void lcd_init(void);
 
 // Debug functions
 uint32_t lcd_get_dma_irq_count(void);
+
+// DMA status functions
+bool lcd_is_dma_busy(void);

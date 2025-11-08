@@ -6,6 +6,8 @@
 // This also enables safe use of fully async DMA since buffer lifetime
 // is managed entirely by Core 1.
 //
+// Double buffering is implemented in gfx.c using a buffer pool.
+//
 
 #include "gfx_core.h"
 #include "gfx.h"

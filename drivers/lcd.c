@@ -849,3 +849,8 @@ void lcd_init()
 
     lcd_initialised = true; // Set the initialised flag
 }
+
+// Check if DMA is currently busy
+bool lcd_is_dma_busy(void) {
+    return lcd_dma_busy;
+}
