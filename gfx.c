@@ -2,6 +2,7 @@
 #include "drivers/lcd.h"
 #include <string.h>
 #include <stdlib.h>
+#include "pico/time.h"
 
 /* Internal storage:
    - tilesheet_ptr: pointer provided by user (not copied), tiles are consecutive 16*16 pixels per tile
@@ -22,6 +23,11 @@ static uint16_t tilemap_back[GFX_TILEMAP_SIZE];  /* next frame contents */
 
 /* Simple dirty all flag to force full redraw */
 static bool force_full_redraw = true;
+
+/* VBlank synchronization */
+#define VBLANK_PERIOD_US 16667  // 60Hz = ~16.67ms per frame
+static absolute_time_t next_vblank_time;
+static bool vblank_sync_enabled = true;
 
 /* Sprite storage */
 static gfx_sprite_info_t sprites[GFX_MAX_SPRITES];
@@ -134,6 +140,9 @@ void gfx_init(const uint16_t *tilesheet_ptr, uint16_t tcount) {
     /* Register DMA completion callback for async buffer management */
     lcd_set_dma_completion_callback(gfx_on_dma_complete);
 
+    /* Initialize vblank timer */
+    next_vblank_time = make_timeout_time_us(VBLANK_PERIOD_US);
+
     force_full_redraw = true;
 }
 
@@ -237,6 +246,15 @@ static void _redraw_region(int16_t x, int16_t y, uint8_t w, uint8_t h) {
    After present, frontmap is updated to match backmap.
 */
 void gfx_present(void) {
+    /* VBlank synchronization: wait until next vblank period to reduce tearing */
+    if (vblank_sync_enabled) {
+        // Wait until the next vblank time
+        sleep_until(next_vblank_time);
+
+        // Schedule next vblank
+        next_vblank_time = delayed_by_us(next_vblank_time, VBLANK_PERIOD_US);
+    }
+
     /* First, erase previous sprite positions by redrawing tiles underneath */
     for (int i = 0; i < GFX_MAX_SPRITES; i++) {
         if (sprites[i].active && sprites[i].has_prev) {
@@ -443,4 +461,17 @@ void gfx_fill_tiles_rect(uint16_t tx, uint16_t ty, uint16_t tw, uint16_t th, uin
             tilemap_back[_tile_index(xx, yy)] = tile_index;
         }
     }
+}
+
+/* VBlank synchronization control */
+void gfx_set_vblank_sync(bool enabled) {
+    vblank_sync_enabled = enabled;
+    if (enabled) {
+        // Reset vblank timer when re-enabling
+        next_vblank_time = make_timeout_time_us(VBLANK_PERIOD_US);
+    }
+}
+
+bool gfx_get_vblank_sync(void) {
+    return vblank_sync_enabled;
 }

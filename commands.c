@@ -26,8 +26,8 @@
 #include "sprites.h"
 #include "tiles.h"
 
-#define STEP_Y 4
-#define STEP_X 4
+#define STEP_Y 8
+#define STEP_X 8
 
 static gfx_sprite_t s;
 

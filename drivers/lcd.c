@@ -277,10 +277,16 @@ void lcd_write16_buf(const uint16_t *buffer, size_t len)
     gpio_put(LCD_DCX, 1); // Data
     gpio_put(LCD_CSX, 0);
 
-    // Use DMA in SEMI-ASYNC mode:
-    // - DMA does the transfer (CPU free during transfer)
-    // - Wait for completion before returning (safe CSX/SPI format handling)
-    // - Interrupt handler still calls callback for buffer pool management
+    // Use DMA in SEMI-ASYNC mode (proven stable):
+    // - DMA controller transfers data while CPU waits (CPU freed from byte-by-byte transfer)
+    // - Wait for DMA completion before returning (prevents race conditions)
+    // - This ensures proper CSX timing and SPI format sequencing
+    //
+    // Why not fully async? Race conditions cause black screen:
+    // - If we return immediately, next call might start before CSX is released
+    // - LCD requires minimum 40ns CSX high pulse between transfers
+    // - Interrupt handler timing is not deterministic enough for back-to-back transfers
+    // - Semi-async still provides significant CPU savings during the DMA transfer itself
     if (lcd_dma_channel >= 0) {
         // Mark DMA as busy before starting transfer
         lcd_dma_busy = true;
@@ -292,24 +298,26 @@ void lcd_write16_buf(const uint16_t *buffer, size_t len)
         dma_channel_set_read_addr(lcd_dma_channel, buffer, false);
         dma_channel_set_trans_count(lcd_dma_channel, len, true);
 
-        // Wait for DMA to complete (semi-async: CPU free during transfer, but synchronized)
+        // Wait for DMA to finish transferring to SPI FIFO
         while (dma_channel_is_busy(lcd_dma_channel)) {
             tight_loop_contents();
         }
 
-        // Wait for SPI FIFO to finish transmitting
+        // Wait for SPI FIFO to drain to LCD
         while (spi_is_busy(LCD_SPI)) {
             tight_loop_contents();
         }
 
-        // Manually clear busy flag (interrupt may not have fired yet in some cases)
-        lcd_dma_busy = false;
-
-        // Now safe to release CSX and restore SPI format
+        // Release chip select and restore SPI format
         gpio_put(LCD_CSX, 1);
+        lcd_dma_busy = false;
         spi_set_format(LCD_SPI, 8, 0, 0, SPI_MSB_FIRST);
 
-        // Note: interrupt handler will still fire and call callback for buffer release
+        // Call completion callback to release buffer (if from pool)
+        if (dma_completion_callback && current_dma_buffer) {
+            dma_completion_callback(current_dma_buffer);
+            current_dma_buffer = NULL;
+        }
     } else {
         // Fallback to blocking SPI if DMA not available
         spi_write16_blocking(LCD_SPI, buffer, len);
