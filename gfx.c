@@ -1,4 +1,5 @@
 #include "gfx.h"
+#include "drivers/lcd.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -44,24 +45,44 @@ static inline int16_t _clamp_i16(int16_t v, int16_t a, int16_t b) {
     return v;
 }
 
+/* DMA completion callback - called from interrupt context */
+static void gfx_on_dma_complete(const uint16_t *buffer) {
+    // IMPORTANT: This is called from interrupt context - must be fast and safe!
+    // Only release buffer if it's from our pool
+    for (int i = 0; i < SPRITE_BUFFER_POOL_SIZE; i++) {
+        if (buffer == sprite_buffers[i]) {
+            sprite_buffer_in_use[i] = false;
+            return;
+        }
+    }
+
+    // If buffer is not from pool, do NOT free it!
+    // It could be:
+    // - A tile buffer (temporary, will be freed by caller)
+    // - A const buffer (from ROM/flash)
+    // - A stack buffer
+    // Calling free() in interrupt context is unsafe and can cause HardFault!
+    // So we simply ignore non-pool buffers.
+}
+
 /* Buffer pool management for sprite composition */
 static uint16_t* gfx_alloc_sprite_buffer(void) {
     // Use round-robin allocation for double buffering
     int idx = next_buffer_index;
 
-    /* If this buffer is still in use (DMA hasn't completed), wait for it
-     * With 2 buffers and async DMA, by the time we need buffer 0 again,
-     * DMA should have finished with it. But we check to be safe.
+    /* With true async DMA and callback-based release:
+     * - We don't wait here anymore
+     * - If buffer is in use, we skip to next buffer
+     * - With 2 buffers, this gives DMA time to complete
      */
     if (sprite_buffer_in_use[idx]) {
-        // Wait for DMA to complete on this buffer
-        // This is the key: we wait BEFORE allocating, not after freeing
-        extern bool lcd_is_dma_busy(void);
-        while (sprite_buffer_in_use[idx] && lcd_is_dma_busy()) {
-            tight_loop_contents();
+        // Buffer still in use by DMA, try next one
+        idx = (idx + 1) % SPRITE_BUFFER_POOL_SIZE;
+        if (sprite_buffer_in_use[idx]) {
+            // Both buffers in use - this means we're rendering faster than DMA can transfer
+            // Fall back to malloc (rare case)
+            return NULL;
         }
-        // Force release if DMA is done
-        sprite_buffer_in_use[idx] = false;
     }
 
     sprite_buffer_in_use[idx] = true;
@@ -70,17 +91,26 @@ static uint16_t* gfx_alloc_sprite_buffer(void) {
 }
 
 static void gfx_free_sprite_buffer(uint16_t* buffer) {
-    // Check if this is one of our pool buffers
+    // With async DMA, we DON'T free immediately
+    // The buffer will be freed by gfx_on_dma_complete() callback
+    // when DMA completes
+    // So this function is now a no-op for pool buffers
+
+    // Only free if it's a malloc'd buffer (not from pool)
+    bool is_pool_buffer = false;
     for (int i = 0; i < SPRITE_BUFFER_POOL_SIZE; i++) {
         if (buffer == sprite_buffers[i]) {
-            sprite_buffer_in_use[i] = false;
-            return;
+            is_pool_buffer = true;
+            break;
         }
     }
-    // If it was allocated with malloc, free it
-    if (buffer != NULL) {
+
+    if (!is_pool_buffer && buffer != NULL) {
+        // This was malloc'd, free it immediately
+        // (shouldn't happen in normal operation)
         free(buffer);
     }
+    // For pool buffers, do nothing - callback will handle it
 }
 
 /* Initialize gfx */
@@ -100,6 +130,9 @@ void gfx_init(const uint16_t *tilesheet_ptr, uint16_t tcount) {
         sprites[i].image = NULL;
         sprites[i].has_prev = false;
     }
+
+    /* Register DMA completion callback for async buffer management */
+    lcd_set_dma_completion_callback(gfx_on_dma_complete);
 
     force_full_redraw = true;
 }

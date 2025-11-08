@@ -28,6 +28,10 @@ static int lcd_dma_channel = -1;     // DMA channel for LCD transfers
 static bool lcd_dma_busy = false;    // flag to indicate if DMA transfer is in progress
 static volatile uint32_t lcd_dma_irq_count = 0;  // DEBUG: count interrupt calls
 
+// Callback for DMA completion (for async buffer management)
+static void (*dma_completion_callback)(const uint16_t *buffer) = NULL;
+static const uint16_t *current_dma_buffer = NULL;
+
 static uint16_t lcd_scroll_top = 0;                      // top fixed area for vertical scrolling
 static uint16_t lcd_memory_scroll_height = FRAME_HEIGHT; // scroll area height
 static uint16_t lcd_scroll_bottom = 0;                   // bottom fixed area for vertical scrolling
@@ -92,6 +96,12 @@ static void lcd_dma_handler()
 
     // Restore SPI format to 8-bit for commands
     spi_set_format(LCD_SPI, 8, 0, 0, SPI_MSB_FIRST);
+
+    // Call completion callback if registered (for async buffer release)
+    if (dma_completion_callback && current_dma_buffer) {
+        dma_completion_callback(current_dma_buffer);
+        current_dma_buffer = NULL;
+    }
 }
 
 //
@@ -256,7 +266,7 @@ void lcd_write16_data(uint8_t len, ...)
 
 void lcd_write16_buf(const uint16_t *buffer, size_t len)
 {
-    // Wait for any previous DMA transfer to complete
+    // Wait for any previous DMA transfer to complete before starting new one
     lcd_dma_wait();
 
     // DO NOT MOVE THE spi_set_format() OR THE gpio_put(LCD_DCX) CALLS!
@@ -267,34 +277,45 @@ void lcd_write16_buf(const uint16_t *buffer, size_t len)
     gpio_put(LCD_DCX, 1); // Data
     gpio_put(LCD_CSX, 0);
 
-    // Use DMA with blocking wait - CPU free during transfer but synchronized
+    // Use DMA in SEMI-ASYNC mode:
+    // - DMA does the transfer (CPU free during transfer)
+    // - Wait for completion before returning (safe CSX/SPI format handling)
+    // - Interrupt handler still calls callback for buffer pool management
     if (lcd_dma_channel >= 0) {
         // Mark DMA as busy before starting transfer
         lcd_dma_busy = true;
+
+        // Store current buffer pointer for callback
+        current_dma_buffer = buffer;
 
         // Configure and start DMA transfer
         dma_channel_set_read_addr(lcd_dma_channel, buffer, false);
         dma_channel_set_trans_count(lcd_dma_channel, len, true);
 
-        // Wait for DMA to complete
+        // Wait for DMA to complete (semi-async: CPU free during transfer, but synchronized)
         while (dma_channel_is_busy(lcd_dma_channel)) {
             tight_loop_contents();
         }
 
-        // Wait for SPI to finish transmitting from FIFO
+        // Wait for SPI FIFO to finish transmitting
         while (spi_is_busy(LCD_SPI)) {
             tight_loop_contents();
         }
 
-        // Clear the busy flag manually
+        // Manually clear busy flag (interrupt may not have fired yet in some cases)
         lcd_dma_busy = false;
+
+        // Now safe to release CSX and restore SPI format
+        gpio_put(LCD_CSX, 1);
+        spi_set_format(LCD_SPI, 8, 0, 0, SPI_MSB_FIRST);
+
+        // Note: interrupt handler will still fire and call callback for buffer release
     } else {
         // Fallback to blocking SPI if DMA not available
         spi_write16_blocking(LCD_SPI, buffer, len);
+        gpio_put(LCD_CSX, 1);
+        spi_set_format(LCD_SPI, 8, 0, 0, SPI_MSB_FIRST);
     }
-
-    gpio_put(LCD_CSX, 1);
-    spi_set_format(LCD_SPI, 8, 0, 0, SPI_MSB_FIRST);
 }
 
 //
@@ -853,4 +874,9 @@ void lcd_init()
 // Check if DMA is currently busy
 bool lcd_is_dma_busy(void) {
     return lcd_dma_busy;
+}
+
+// Set DMA completion callback (called from interrupt context)
+void lcd_set_dma_completion_callback(lcd_dma_callback_t callback) {
+    dma_completion_callback = callback;
 }

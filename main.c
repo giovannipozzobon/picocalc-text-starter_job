@@ -170,7 +170,8 @@ int main()
     }
 
     // Initialize Core 1 for graphics processing AFTER hardware is ready
-    gfx_core_init();
+    // TEMPORARILY DISABLED to debug black screen issue
+    // gfx_core_init();
 
 
     printf("\033c\033[1m\n Hello from the PicoCalc Text Starter!\033[0m\n\n");

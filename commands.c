@@ -1257,51 +1257,51 @@ void show_sprite(void)
     // Hide cursor
     lcd_enable_cursor(false);
     /* initialize gfx with tilesheet from tiles.h */
-    gfx_core_gfx_init(my_tilesheet, my_tilesheet_count);
+    gfx_init(my_tilesheet, my_tilesheet_count);
 
     /* prepare map: create a complete scene */
-    gfx_core_gfx_clear_backmap(34);  // sky as background
+    gfx_clear_backmap(34);  // sky as background
 
     // Create floor at bottom (rows 18-19, screen 320x320 = 20x20 tiles)
     for (uint16_t x = 0; x < 20; x++) {
-        gfx_core_gfx_set_tile(x, 18, 0);  // grass
-        gfx_core_gfx_set_tile(x, 19, 0);  // dirt below grass
+        gfx_set_tile(x, 18, 0);  // grass
+        gfx_set_tile(x, 19, 0);  // dirt below grass
     }
 
     // Create central platform with brick wall
     for (uint16_t x = 5; x <= 10; x++) {
-        gfx_core_gfx_set_tile(x, 14, 90);  // red bricks
-        gfx_core_gfx_set_tile(x, 15, 90);  // red bricks
+        gfx_set_tile(x, 14, 90);  // red bricks
+        gfx_set_tile(x, 15, 90);  // red bricks
     }
 
     // Gray floor on platform
     for (uint16_t x = 5; x <= 10; x++) {
-        gfx_core_gfx_set_tile(x, 13, 48);  // gray floor
+        gfx_set_tile(x, 13, 48);  // gray floor
     }
 
     // Water on right
     for (uint16_t y = 16; y <= 19; y++) {
         for (uint16_t x = 15; x <= 19; x++) {
-            gfx_core_gfx_set_tile(x, y, 6);  // water
+            gfx_set_tile(x, y, 6);  // water
         }
     }
 
     // Sand near water
     for (uint16_t y = 16; y <= 19; y++) {
-        gfx_core_gfx_set_tile(14, y, 122);  // sand
+        gfx_set_tile(14, y, 122);  // sand
     }
 
     // Stone wall on left
     for (uint16_t y = 15; y <= 19; y++) {
-        gfx_core_gfx_set_tile(0, y, 30);  // stone wall
-        gfx_core_gfx_set_tile(1, y, 30);  // stone wall
+        gfx_set_tile(0, y, 30);  // stone wall
+        gfx_set_tile(1, y, 30);  // stone wall
     }
 
     /* create sprite (w=16,h=16) */
-    s = gfx_core_gfx_create_sprite(sprite1_pixels, 16, 16, sx, sy, 0);
+    s = gfx_create_sprite(sprite1_pixels, 16, 16, sx, sy, 0);
 
     /* present: draw modified tiles and sprite */
-    gfx_core_gfx_present();
+    gfx_present();
 
     // Continuous loop until user presses ESC
     while (true) {
@@ -1332,8 +1332,8 @@ void show_sprite(void)
                 }
 
                 // Update sprite position
-                gfx_core_gfx_move_sprite(s, sx, sy);
-                gfx_core_gfx_present();
+                gfx_move_sprite(s, sx, sy);
+                gfx_present();
             }
         }
 
@@ -1341,7 +1341,7 @@ void show_sprite(void)
     }
 
     // Destroy sprite before cleanup
-    gfx_core_gfx_destroy_sprite(s);
+    gfx_destroy_sprite(s);
 
     // Restore text screen and cursor
     lcd_clear_screen();
