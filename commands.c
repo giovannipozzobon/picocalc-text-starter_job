@@ -1364,6 +1364,11 @@ void show_sprite(void)
     // Now safe to destroy sprite and restore text screen
     gfx_core_gfx_destroy_sprite(s);
 
+    // Flush any remaining keyboard input before returning to REPL
+    while (keyboard_key_available()) {
+        keyboard_get_key();
+    }
+
     // Restore text screen and cursor
     lcd_clear_screen();
     lcd_enable_cursor(true);
