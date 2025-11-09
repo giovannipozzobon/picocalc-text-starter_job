@@ -177,6 +177,9 @@ void gfx_init(const uint16_t *tilesheet_ptr, uint16_t tcount) {
     tilesheet = tilesheet_ptr;
     tiles_count = tcount;
 
+    /* Clear framebuffer - essential to remove any previous LCD content */
+    memset(framebuffer, 0, sizeof(framebuffer));
+
     /* Init tilemap to "blank" sentinel (UINT16_MAX) */
     for (uint32_t i = 0; i < GFX_TILEMAP_SIZE; i++) {
         tilemap[i] = UINT16_MAX;

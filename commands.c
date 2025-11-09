@@ -811,6 +811,12 @@ void sd_read_filename(const char *filename)
             {
                 printf("More?");
                 char ch = getchar();
+
+                // Flush keyboard buffer after getchar()
+                while (keyboard_key_available()) {
+                    keyboard_get_key();
+                }
+
                 if (ch == 'q' || ch == 'Q')
                 {
                     user_quit = true;
@@ -1207,6 +1213,12 @@ void hexdump_filename(const char *filename)
         {
             printf("Press any key to continue\n(or 'q' to quit)...");
             char ch = getchar();
+
+            // Flush keyboard buffer after getchar()
+            while (keyboard_key_available()) {
+                keyboard_get_key();
+            }
+
             if (ch == 'q' || ch == 'Q')
             {
                 printf("\n");
@@ -1254,8 +1266,10 @@ void show_sprite(void)
     int16_t sx = 40;
     int16_t sy = 40;
 
-    // Hide cursor
+    // Hide cursor and clear LCD hardware completely
     lcd_enable_cursor(false);
+    lcd_clear_screen();  // Force LCD hardware to blank state
+
     /* initialize gfx with tilesheet from tiles.h */
     gfx_core_gfx_init(my_tilesheet, my_tilesheet_count);
 
@@ -1450,6 +1464,11 @@ void showimg_filename(const char *filename)
 
     // Wait for user input
     getchar();
+
+    // Flush any remaining keyboard input to prevent interference with next command
+    while (keyboard_key_available()) {
+        keyboard_get_key();
+    }
 
     // Restore text screen and cursor
     lcd_clear_screen();
