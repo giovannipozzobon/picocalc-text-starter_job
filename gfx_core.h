@@ -13,6 +13,8 @@ typedef enum {
     GFX_CMD_MOVE_SPRITE,    // Move a sprite
     GFX_CMD_DESTROY_SPRITE, // Destroy a sprite
     GFX_CMD_DRAW_SPRITE,    // Draw sprites
+    GFX_CMD_START_RENDERING,// Start continuous rendering
+    GFX_CMD_STOP_RENDERING, // Stop continuous rendering
     GFX_CMD_SHUTDOWN,       // Shutdown graphics core
 } gfx_cmd_type_t;
 
@@ -68,3 +70,5 @@ void gfx_core_gfx_clear_backmap(uint16_t bg_tile);
 int gfx_core_gfx_create_sprite(const uint16_t *image, uint8_t w, uint8_t h, int16_t x, int16_t y, uint8_t z);
 void gfx_core_gfx_move_sprite(int sprite_id, int16_t x, int16_t y);
 void gfx_core_gfx_destroy_sprite(int sprite_id);
+void gfx_core_start_rendering(void);
+void gfx_core_stop_rendering(void);

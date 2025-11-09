@@ -1,43 +1,46 @@
 //
 // Graphics Core - Multicore graphics rendering on Core 1
 //
-// This module runs all graphics operations on Core 1, allowing Core 0
-// to continue with application logic while graphics render asynchronously.
-// This also enables safe use of fully async DMA since buffer lifetime
-// is managed entirely by Core 1.
-//
-// Double buffering is implemented in gfx.c using a buffer pool.
+// This module runs all graphics operations on Core 1 with continuous rendering.
+// Core 1 renders at a fixed frame rate while Core 0 sends commands asynchronously.
 //
 
 #include "gfx_core.h"
 #include "gfx.h"
 #include "pico/multicore.h"
 #include "pico/mutex.h"
+#include "pico/time.h"
 #include <string.h>
 
-// Command queue (using Pico SDK FIFO for inter-core communication)
-#define GFX_QUEUE_SIZE 32
-
-static mutex_t gfx_mutex;
+// Rendering control
 static volatile bool gfx_core_running = false;
-static volatile bool gfx_core_busy = false;
+static volatile bool gfx_core_rendering_enabled = false;
+static mutex_t gfx_mutex;
 
-// Core 1 main loop
+// Command pool (prevents stack corruption issues)
+#define CMD_POOL_SIZE 4
+static gfx_command_t cmd_pool[CMD_POOL_SIZE];
+static volatile int next_cmd_slot = 0;
+static mutex_t cmd_pool_mutex;
+
+// Frame timing (60 FPS)
+#define FRAME_TIME_US 16667  // ~60Hz
+
+// Core 1 main loop - continuous rendering
 static void gfx_core1_main(void) {
     gfx_core_running = true;
+    absolute_time_t next_frame_time = get_absolute_time();
 
     while (gfx_core_running) {
-        // Check if there's a command in the FIFO
-        if (multicore_fifo_rvalid()) {
+        // Process any pending commands from FIFO (non-blocking)
+        while (multicore_fifo_rvalid()) {
             uint32_t cmd_ptr = multicore_fifo_pop_blocking();
 
             if (cmd_ptr == 0) {
                 // Shutdown command
                 gfx_core_running = false;
-                break;
+                return;
             }
-
-            gfx_core_busy = true;
 
             gfx_command_t *cmd = (gfx_command_t *)cmd_ptr;
 
@@ -45,10 +48,15 @@ static void gfx_core1_main(void) {
             switch (cmd->type) {
                 case GFX_CMD_INIT:
                     gfx_init(cmd->data.init.tilesheet, cmd->data.init.tiles_count);
+                    // Don't enable rendering yet - wait for scene setup
                     break;
 
-                case GFX_CMD_PRESENT:
-                    gfx_present();
+                case GFX_CMD_START_RENDERING:
+                    gfx_core_rendering_enabled = true;
+                    break;
+
+                case GFX_CMD_STOP_RENDERING:
+                    gfx_core_rendering_enabled = false;
                     break;
 
                 case GFX_CMD_SET_TILE:
@@ -85,33 +93,42 @@ static void gfx_core1_main(void) {
 
                 case GFX_CMD_DESTROY_SPRITE:
                     gfx_destroy_sprite(cmd->data.destroy_sprite.sprite_id);
-                    break;
-
-                case GFX_CMD_DRAW_SPRITE:
-                    // This command type is unused - sprites are drawn in gfx_present()
+                    // Don't disable rendering here - use STOP_RENDERING command explicitly
                     break;
 
                 case GFX_CMD_SHUTDOWN:
                     gfx_core_running = false;
-                    break;
+                    return;
 
                 default:
                     break;
             }
 
-            gfx_core_busy = false;
-
-            // Signal completion back to core 0
-            multicore_fifo_push_blocking(1); // ACK
+            // Signal completion back to core 0 (only for INIT - critical for startup)
+            if (cmd->type == GFX_CMD_INIT) {
+                multicore_fifo_push_blocking(1); // ACK
+            }
         }
 
-        tight_loop_contents();
+        // Continuous rendering loop (60 FPS)
+        if (gfx_core_rendering_enabled) {
+            // Wait for next frame time
+            sleep_until(next_frame_time);
+            next_frame_time = delayed_by_us(next_frame_time, FRAME_TIME_US);
+
+            // Render frame
+            gfx_present();
+        } else {
+            // If rendering disabled, yield CPU briefly to allow command processing
+            tight_loop_contents();
+        }
     }
 }
 
 // Initialize the graphics core system
 void gfx_core_init(void) {
     mutex_init(&gfx_mutex);
+    mutex_init(&cmd_pool_mutex);
 
     // Launch core 1 with graphics loop
     multicore_launch_core1(gfx_core1_main);
@@ -120,31 +137,30 @@ void gfx_core_init(void) {
     sleep_ms(10);
 }
 
-// Send a command to the graphics core (blocking - waits for completion)
+// Send a command to the graphics core (non-blocking for most commands)
 bool gfx_core_send_command(const gfx_command_t *cmd) {
     if (!gfx_core_running) {
         return false;
     }
 
-    // Send command pointer via FIFO
-    multicore_fifo_push_blocking((uint32_t)cmd);
+    // Get a slot from the command pool (round-robin)
+    mutex_enter_blocking(&cmd_pool_mutex);
+    int slot = next_cmd_slot;
+    next_cmd_slot = (next_cmd_slot + 1) % CMD_POOL_SIZE;
 
-    // Wait for ACK (blocking until command completes)
-    multicore_fifo_pop_blocking();
+    // Copy command to pool slot (protects against stack corruption)
+    cmd_pool[slot] = *cmd;
+
+    // Send pool slot pointer via FIFO
+    multicore_fifo_push_blocking((uint32_t)&cmd_pool[slot]);
+    mutex_exit(&cmd_pool_mutex);
+
+    // Only wait for ACK on INIT command (critical for startup synchronization)
+    if (cmd->type == GFX_CMD_INIT) {
+        multicore_fifo_pop_blocking();
+    }
 
     return true;
-}
-
-// Wait for graphics core to finish processing (blocking)
-void gfx_core_wait_idle(void) {
-    while (gfx_core_busy) {
-        tight_loop_contents();
-    }
-}
-
-// Check if graphics core is busy
-bool gfx_core_is_busy(void) {
-    return gfx_core_busy;
 }
 
 //
@@ -163,10 +179,8 @@ void gfx_core_gfx_init(const uint16_t *tilesheet_ptr, uint16_t tiles_count) {
 }
 
 void gfx_core_gfx_present(void) {
-    gfx_command_t cmd = {
-        .type = GFX_CMD_PRESENT
-    };
-    gfx_core_send_command(&cmd);
+    // With continuous rendering, present is automatic - this is now a no-op
+    // The Core 1 renders continuously at 60 FPS
 }
 
 void gfx_core_gfx_set_tile(uint16_t x, uint16_t y, uint16_t tile_index) {
@@ -192,7 +206,7 @@ void gfx_core_gfx_clear_backmap(uint16_t bg_tile) {
 }
 
 int gfx_core_gfx_create_sprite(const uint16_t *image, uint8_t w, uint8_t h, int16_t x, int16_t y, uint8_t z) {
-    int sprite_id = -1;
+    volatile int sprite_id = -1;
     gfx_command_t cmd = {
         .type = GFX_CMD_CREATE_SPRITE,
         .data.create_sprite = {
@@ -202,10 +216,18 @@ int gfx_core_gfx_create_sprite(const uint16_t *image, uint8_t w, uint8_t h, int1
             .x = x,
             .y = y,
             .z = z,
-            .result_id = &sprite_id
+            .result_id = (int*)&sprite_id
         }
     };
     gfx_core_send_command(&cmd);
+
+    // Wait for Core 1 to write the sprite ID (should happen within one frame)
+    int timeout = 0;
+    while (sprite_id == -1 && timeout < 100) {
+        sleep_us(100); // Wait 100us at a time
+        timeout++;
+    }
+
     return sprite_id;
 }
 
@@ -229,4 +251,26 @@ void gfx_core_gfx_destroy_sprite(int sprite_id) {
         }
     };
     gfx_core_send_command(&cmd);
+}
+
+void gfx_core_start_rendering(void) {
+    gfx_command_t cmd = {
+        .type = GFX_CMD_START_RENDERING
+    };
+    gfx_core_send_command(&cmd);
+}
+
+void gfx_core_stop_rendering(void) {
+    gfx_command_t cmd = {
+        .type = GFX_CMD_STOP_RENDERING
+    };
+    gfx_core_send_command(&cmd);
+
+    // Wait until Core 1 has actually stopped rendering
+    // This is important to ensure sprite destruction happens cleanly
+    int timeout = 0;
+    while (gfx_core_rendering_enabled && timeout < 1000) {
+        sleep_us(100); // Wait 100us at a time
+        timeout++;
+    }
 }
