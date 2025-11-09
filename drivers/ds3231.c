@@ -1,5 +1,7 @@
 #include "ds3231.h"
+#include "southbridge.h"
 #include <stdio.h>
+#include <stdatomic.h>
 
 // Converte un valore BCD (Binary Coded Decimal) in decimale
 uint8_t bcd_to_dec(uint8_t bcd) {
@@ -41,6 +43,17 @@ bool ds3231_read_time(ds3231_datetime_t *datetime) {
         return false;
     }
 
+    // Wait for southbridge I2C to be available
+    while (!sb_available()) {
+        tight_loop_contents();
+    }
+
+    // Acquire I2C lock
+    atomic_store(&sb_i2c_in_use, true);
+
+    // Set I2C to DS3231 speed (100kHz)
+    i2c_set_baudrate(DS3231_I2C_PORT, DS3231_I2C_BAUDRATE);
+
     uint8_t buffer[7];
     uint8_t reg = DS3231_REG_SECONDS;
 
@@ -48,6 +61,9 @@ bool ds3231_read_time(ds3231_datetime_t *datetime) {
     int result = i2c_write_blocking(DS3231_I2C_PORT, DS3231_I2C_ADDR, &reg, 1, true);
     if (result < 0) {
         printf("Error writing DS3231 register address\n");
+        // Restore southbridge I2C speed and release lock
+        i2c_set_baudrate(DS3231_I2C_PORT, SB_BAUDRATE);
+        atomic_store(&sb_i2c_in_use, false);
         return false;
     }
 
@@ -55,8 +71,17 @@ bool ds3231_read_time(ds3231_datetime_t *datetime) {
     result = i2c_read_blocking(DS3231_I2C_PORT, DS3231_I2C_ADDR, buffer, 7, false);
     if (result < 0) {
         printf("Error reading data from DS3231\n");
+        // Restore southbridge I2C speed and release lock
+        i2c_set_baudrate(DS3231_I2C_PORT, SB_BAUDRATE);
+        atomic_store(&sb_i2c_in_use, false);
         return false;
     }
+
+    // Restore southbridge I2C speed before releasing lock
+    i2c_set_baudrate(DS3231_I2C_PORT, SB_BAUDRATE);
+
+    // Release I2C lock
+    atomic_store(&sb_i2c_in_use, false);
 
     // Convert BCD values to decimal and store in structure
     datetime->seconds = bcd_to_dec(buffer[0] & 0x7F);  // Mask bit 7
@@ -85,6 +110,17 @@ bool ds3231_write_time(const ds3231_datetime_t *datetime) {
         return false;
     }
 
+    // Wait for southbridge I2C to be available
+    while (!sb_available()) {
+        tight_loop_contents();
+    }
+
+    // Acquire I2C lock
+    atomic_store(&sb_i2c_in_use, true);
+
+    // Set I2C to DS3231 speed (100kHz)
+    i2c_set_baudrate(DS3231_I2C_PORT, DS3231_I2C_BAUDRATE);
+
     // Buffer: [start register, seconds, minutes, hours, day, date, month, year]
     uint8_t buffer[8];
 
@@ -99,6 +135,12 @@ bool ds3231_write_time(const ds3231_datetime_t *datetime) {
 
     // Write all registers in a single transaction
     int result = i2c_write_blocking(DS3231_I2C_PORT, DS3231_I2C_ADDR, buffer, 8, false);
+
+    // Restore southbridge I2C speed
+    i2c_set_baudrate(DS3231_I2C_PORT, SB_BAUDRATE);
+
+    // Release I2C lock
+    atomic_store(&sb_i2c_in_use, false);
 
     if (result < 0) {
         printf("Error writing data to DS3231\n");

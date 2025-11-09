@@ -13,6 +13,7 @@
 #include "commands.h"
 #include "wifi.h"
 #include "tiles.h"
+#include "gfx_core.h"
 
 bool power_off_requested = false;
 
@@ -168,10 +169,15 @@ int main()
         display_set_led_callback(set_onboard_led);
     }
 
+    // Initialize Core 1 for graphics processing AFTER hardware is ready
+    gfx_core_init();
+
+
     printf("\033c\033[1m\n Hello from the PicoCalc Text Starter!\033[0m\n\n");
     printf("      Contributed to the community\n");
     printf("            by Blair Leduc.\n\n");
-    printf("Type \033[4mhelp\033[0m for a list of commands.\n\n");
+    printf("Type \033[4mhelp\033[0m for a list of commands.\n");
+    printf("Vers 1.1 Jobond \n\n");
 
     // Inizializza il DS3231 RTC
     if (ds3231_init()) {
@@ -180,7 +186,7 @@ int main()
         printf("Warning: DS3231 RTC not detected\n\n");
     }
 
-    //JOBOND 
+    //JOBOND: TEMPORARILY DISABLED
     //test_wifi();
 
     // A very simple REPL
@@ -197,7 +203,7 @@ int main()
 
         // Convert the input to lowercase for case-insensitive command matching
         str_to_lower(buffer);
-        
+
         run_command(buffer); // Call the command handler
 
         printf("\033[q\nReady. %s\n", power_off_requested ? "(power off requested)" : ""); // Turn off the LED and prompt for input again

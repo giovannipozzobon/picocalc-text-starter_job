@@ -120,3 +120,11 @@ void lcd_init(void);
 
 // Debug functions
 uint32_t lcd_get_dma_irq_count(void);
+
+// DMA status functions
+bool lcd_is_dma_busy(void);
+
+// DMA async callback registration
+// Callback is called from interrupt context when DMA completes
+typedef void (*lcd_dma_callback_t)(const uint16_t *buffer);
+void lcd_set_dma_completion_callback(lcd_dma_callback_t callback);

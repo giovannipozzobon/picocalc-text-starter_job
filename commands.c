@@ -22,11 +22,12 @@
 #include "tests.h"
 #include "commands.h"
 #include "gfx.h"
+#include "gfx_core.h"
 #include "sprites.h"
 #include "tiles.h"
 
-#define STEP_Y 2
-#define STEP_X 2
+#define STEP_Y 8
+#define STEP_X 8
 
 static gfx_sprite_t s;
 
@@ -810,6 +811,12 @@ void sd_read_filename(const char *filename)
             {
                 printf("More?");
                 char ch = getchar();
+
+                // Flush keyboard buffer after getchar()
+                while (keyboard_key_available()) {
+                    keyboard_get_key();
+                }
+
                 if (ch == 'q' || ch == 'Q')
                 {
                     user_quit = true;
@@ -1206,6 +1213,12 @@ void hexdump_filename(const char *filename)
         {
             printf("Press any key to continue\n(or 'q' to quit)...");
             char ch = getchar();
+
+            // Flush keyboard buffer after getchar()
+            while (keyboard_key_available()) {
+                keyboard_get_key();
+            }
+
             if (ch == 'q' || ch == 'Q')
             {
                 printf("\n");
@@ -1243,8 +1256,8 @@ void sprite_frame(int16_t *sx, int16_t *velocity) {
         *velocity = 1; // reverse direction to right
     }
 
-    gfx_move_sprite(s, *sx, 40);
-    gfx_present();
+    gfx_core_gfx_move_sprite(s, *sx, 40);
+    // No need to call present - Core 1 renders continuously at 60 FPS
 }
 
 void show_sprite(void)
@@ -1253,57 +1266,62 @@ void show_sprite(void)
     int16_t sx = 40;
     int16_t sy = 40;
 
-    // Hide cursor
+    // Hide cursor and clear LCD hardware completely
     lcd_enable_cursor(false);
+    lcd_clear_screen();  // Force LCD hardware to blank state
+
     /* initialize gfx with tilesheet from tiles.h */
-    gfx_init(my_tilesheet, my_tilesheet_count);
+    gfx_core_gfx_init(my_tilesheet, my_tilesheet_count);
 
     /* prepare map: create a complete scene */
-    gfx_clear_backmap(34);  // sky as background
+    gfx_core_gfx_clear_backmap(34);  // sky as background
 
     // Create floor at bottom (rows 18-19, screen 320x320 = 20x20 tiles)
     for (uint16_t x = 0; x < 20; x++) {
-        gfx_set_tile(x, 18, 0);  // grass
-        gfx_set_tile(x, 19, 0);  // dirt below grass
+        gfx_core_gfx_set_tile(x, 18, 0);  // grass
+        gfx_core_gfx_set_tile(x, 19, 0);  // dirt below grass
     }
 
     // Create central platform with brick wall
     for (uint16_t x = 5; x <= 10; x++) {
-        gfx_set_tile(x, 14, 90);  // red bricks
-        gfx_set_tile(x, 15, 90);  // red bricks
+        gfx_core_gfx_set_tile(x, 14, 90);  // red bricks
+        gfx_core_gfx_set_tile(x, 15, 90);  // red bricks
     }
 
     // Gray floor on platform
     for (uint16_t x = 5; x <= 10; x++) {
-        gfx_set_tile(x, 13, 48);  // gray floor
+        gfx_core_gfx_set_tile(x, 13, 48);  // gray floor
     }
 
     // Water on right
     for (uint16_t y = 16; y <= 19; y++) {
         for (uint16_t x = 15; x <= 19; x++) {
-            gfx_set_tile(x, y, 6);  // water
+            gfx_core_gfx_set_tile(x, y, 6);  // water
         }
     }
 
     // Sand near water
     for (uint16_t y = 16; y <= 19; y++) {
-        gfx_set_tile(14, y, 122);  // sand
+        gfx_core_gfx_set_tile(14, y, 122);  // sand
     }
 
     // Stone wall on left
     for (uint16_t y = 15; y <= 19; y++) {
-        gfx_set_tile(0, y, 30);  // stone wall
-        gfx_set_tile(1, y, 30);  // stone wall
+        gfx_core_gfx_set_tile(0, y, 30);  // stone wall
+        gfx_core_gfx_set_tile(1, y, 30);  // stone wall
     }
 
     /* create sprite (w=16,h=16) */
-    s = gfx_create_sprite(sprite1_pixels, 16, 16, sx, sy, 0);
+    s = gfx_core_gfx_create_sprite(sprite1_pixels, 16, 16, sx, sy, 0);
 
-    /* present: draw modified tiles and sprite */
-    gfx_present();
+    // Start continuous rendering now that the scene is ready
+    gfx_core_start_rendering();
 
     // Continuous loop until user presses ESC
     while (true) {
+        // Manually poll keyboard to ensure it's being read
+        keyboard_poll();
+
         // Check if a key is pressed from physical keyboard (non-blocking)
         if (keyboard_key_available()){
             int key = keyboard_get_key();
@@ -1331,16 +1349,25 @@ void show_sprite(void)
                 }
 
                 // Update sprite position
-                gfx_move_sprite(s, sx, sy);
-                gfx_present();
+                gfx_core_gfx_move_sprite(s, sx, sy);
+                // Core 1 renders continuously - no need to call present
             }
         }
 
-        //sleep_ms(16);  // ~60 FPS
+        // Small sleep to avoid hogging CPU
+        sleep_ms(10);
     }
 
-    // Destroy sprite before cleanup
-    gfx_destroy_sprite(s);
+    // Stop continuous rendering FIRST (blocks until Core 1 stops)
+    gfx_core_stop_rendering();
+
+    // Now safe to destroy sprite and restore text screen
+    gfx_core_gfx_destroy_sprite(s);
+
+    // Flush any remaining keyboard input before returning to REPL
+    while (keyboard_key_available()) {
+        keyboard_get_key();
+    }
 
     // Restore text screen and cursor
     lcd_clear_screen();
@@ -1442,6 +1469,11 @@ void showimg_filename(const char *filename)
 
     // Wait for user input
     getchar();
+
+    // Flush any remaining keyboard input to prevent interference with next command
+    while (keyboard_key_available()) {
+        keyboard_get_key();
+    }
 
     // Restore text screen and cursor
     lcd_clear_screen();

@@ -95,6 +95,10 @@ void gfx_force_draw_tile(uint16_t tx, uint16_t ty);
 /* Convenience: draw a solid rectangle (colour RGB565) in tilemap units (tile coords) */
 void gfx_fill_tiles_rect(uint16_t tx, uint16_t ty, uint16_t tw, uint16_t th, uint16_t tile_index);
 
+/* VBlank synchronization control */
+void gfx_set_vblank_sync(bool enabled);
+bool gfx_get_vblank_sync(void);
+
 /* Get constants */
 static inline uint16_t gfx_tiles_x(void) { return GFX_TILES_X; }
 static inline uint16_t gfx_tiles_y(void) { return GFX_TILES_Y; }
