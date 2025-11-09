@@ -4,11 +4,18 @@
 #include <stdlib.h>
 #include "pico/time.h"
 
-/* Internal storage:
-   - tilesheet_ptr: pointer provided by user (not copied), tiles are consecutive 16*16 pixels per tile
-   - tiles_count: number of tiles available in the tilesheet
-   - two tilemaps (front/back) of uint16_t tile indices; on gfx_present() we draw tiles that differ (back != front)
-   - dirty flags per tile optional (we use compare to reduce memory)
+/* Graphics system with single persistent framebuffer
+   - tilesheet_ptr: pointer to tile images (16x16 pixels each, RGB565)
+   - tiles_count: number of tiles in tilesheet
+   - framebuffer: single persistent buffer holding the complete screen image (WIDTH x HEIGHT pixels)
+   - tilemap: tracks which tiles are where
+   - Sprites are composited directly into framebuffer
+
+   Key principle: framebuffer is created once and reused.
+   - On init: framebuffer is created and filled with tiles
+   - On sprite move: erase old sprite position (redraw tiles), draw new sprite position, send to display
+   - On tile change: redraw affected tiles into framebuffer
+   - Full redraw only when explicitly requested
 */
 
 #define GFX_BACKGROUND_COLOR 0x0000  // black
@@ -17,12 +24,14 @@ static const uint16_t background = GFX_BACKGROUND_COLOR;
 static const uint16_t *tilesheet = NULL;
 static uint16_t tiles_count = 0;
 
-/* Tilemaps */
-static uint16_t tilemap_front[GFX_TILEMAP_SIZE]; /* currently shown on display */
-static uint16_t tilemap_back[GFX_TILEMAP_SIZE];  /* next frame contents */
+/* Single persistent framebuffer - holds complete screen image */
+static uint16_t framebuffer[WIDTH * HEIGHT] __attribute__((aligned(4)));
 
-/* Simple dirty all flag to force full redraw */
-static bool force_full_redraw = true;
+/* Tilemap - tracks current tile layout */
+static uint16_t tilemap[GFX_TILEMAP_SIZE];
+
+/* Framebuffer needs full rebuild */
+static bool framebuffer_dirty = true;
 
 /* VBlank synchronization */
 #define VBLANK_PERIOD_US 16667  // 60Hz = ~16.67ms per frame
@@ -32,16 +41,14 @@ static bool vblank_sync_enabled = true;
 /* Sprite storage */
 static gfx_sprite_info_t sprites[GFX_MAX_SPRITES];
 
-/* Double buffering for sprite composition - avoids malloc/free with async DMA */
-#define SPRITE_BUFFER_POOL_SIZE 2
-#define MAX_SPRITE_PIXELS (32 * 32)  // Max 32x32 sprite
-static uint16_t sprite_buffers[SPRITE_BUFFER_POOL_SIZE][MAX_SPRITE_PIXELS] __attribute__((aligned(4)));
-static volatile bool sprite_buffer_in_use[SPRITE_BUFFER_POOL_SIZE] = {false, false};
-static int next_buffer_index = 0;
-
 /* Helper: index in tilemap from tx,ty */
 static inline uint32_t _tile_index(uint16_t tx, uint16_t ty) {
     return (uint32_t)ty * GFX_TILES_X + tx;
+}
+
+/* Helper: framebuffer index from screen x,y */
+static inline uint32_t _fb_index(uint16_t x, uint16_t y) {
+    return (uint32_t)y * WIDTH + x;
 }
 
 /* Clip helper */
@@ -51,170 +58,52 @@ static inline int16_t _clamp_i16(int16_t v, int16_t a, int16_t b) {
     return v;
 }
 
-/* DMA completion callback - called from interrupt context */
-static void gfx_on_dma_complete(const uint16_t *buffer) {
-    // IMPORTANT: This is called from interrupt context - must be fast and safe!
-    // Only release buffer if it's from our pool
-    for (int i = 0; i < SPRITE_BUFFER_POOL_SIZE; i++) {
-        if (buffer == sprite_buffers[i]) {
-            sprite_buffer_in_use[i] = false;
-            return;
-        }
-    }
-
-    // If buffer is not from pool, do NOT free it!
-    // It could be:
-    // - A tile buffer (temporary, will be freed by caller)
-    // - A const buffer (from ROM/flash)
-    // - A stack buffer
-    // Calling free() in interrupt context is unsafe and can cause HardFault!
-    // So we simply ignore non-pool buffers.
-}
-
-/* Buffer pool management for sprite composition */
-static uint16_t* gfx_alloc_sprite_buffer(void) {
-    // Use round-robin allocation for double buffering
-    int idx = next_buffer_index;
-
-    /* With true async DMA and callback-based release:
-     * - We don't wait here anymore
-     * - If buffer is in use, we skip to next buffer
-     * - With 2 buffers, this gives DMA time to complete
-     */
-    if (sprite_buffer_in_use[idx]) {
-        // Buffer still in use by DMA, try next one
-        idx = (idx + 1) % SPRITE_BUFFER_POOL_SIZE;
-        if (sprite_buffer_in_use[idx]) {
-            // Both buffers in use - this means we're rendering faster than DMA can transfer
-            // Fall back to malloc (rare case)
-            return NULL;
-        }
-    }
-
-    sprite_buffer_in_use[idx] = true;
-    next_buffer_index = (idx + 1) % SPRITE_BUFFER_POOL_SIZE;
-    return sprite_buffers[idx];
-}
-
-static void gfx_free_sprite_buffer(uint16_t* buffer) {
-    // With async DMA, we DON'T free immediately
-    // The buffer will be freed by gfx_on_dma_complete() callback
-    // when DMA completes
-    // So this function is now a no-op for pool buffers
-
-    // Only free if it's a malloc'd buffer (not from pool)
-    bool is_pool_buffer = false;
-    for (int i = 0; i < SPRITE_BUFFER_POOL_SIZE; i++) {
-        if (buffer == sprite_buffers[i]) {
-            is_pool_buffer = true;
-            break;
-        }
-    }
-
-    if (!is_pool_buffer && buffer != NULL) {
-        // This was malloc'd, free it immediately
-        // (shouldn't happen in normal operation)
-        free(buffer);
-    }
-    // For pool buffers, do nothing - callback will handle it
-}
-
-/* Initialize gfx */
-void gfx_init(const uint16_t *tilesheet_ptr, uint16_t tcount) {
-    tilesheet = tilesheet_ptr;
-    tiles_count = tcount;
-
-    /* init tilemaps to "blank" sentinel (UINT16_MAX) */
-    for (uint32_t i = 0; i < GFX_TILEMAP_SIZE; i++) {
-        tilemap_front[i] = UINT16_MAX;
-        tilemap_back[i] = UINT16_MAX;
-    }
-
-    /* clear sprites */
-    for (int i = 0; i < GFX_MAX_SPRITES; i++) {
-        sprites[i].active = false;
-        sprites[i].image = NULL;
-        sprites[i].has_prev = false;
-    }
-
-    /* Register DMA completion callback for async buffer management */
-    lcd_set_dma_completion_callback(gfx_on_dma_complete);
-
-    /* Initialize vblank timer */
-    next_vblank_time = make_timeout_time_us(VBLANK_PERIOD_US);
-
-    force_full_redraw = true;
-}
-
-/* Set tilesheet pointer */
-void gfx_set_tilesheet(const uint16_t *tilesheet_ptr, uint16_t tcount) {
-    tilesheet = tilesheet_ptr;
-    tiles_count = tcount;
-    force_full_redraw = true;
-}
-
-/* Set tile in backmap */
-void gfx_set_tile(uint16_t tx, uint16_t ty, uint16_t tile_index) {
-    if (tx >= GFX_TILES_X || ty >= GFX_TILES_Y) return;
-    tilemap_back[_tile_index(tx, ty)] = tile_index;
-}
-
-/* Get tile from backmap */
-uint16_t gfx_get_tile(uint16_t tx, uint16_t ty) {
-    if (tx >= GFX_TILES_X || ty >= GFX_TILES_Y) return UINT16_MAX;
-    return tilemap_back[_tile_index(tx, ty)];
-}
-
-/* Clear backmap to tile_index */
-void gfx_clear_backmap(uint16_t tile_index) {
-    for (uint32_t i = 0; i < GFX_TILEMAP_SIZE; i++) {
-        tilemap_back[i] = tile_index;
-    }
-    force_full_redraw = true;
-}
-
-/* Mark all dirty */
-void gfx_mark_all_dirty(void) {
-    force_full_redraw = true;
-}
-
-/* Force draw single tile immediately (uses tilemap_back content) */
-void gfx_force_draw_tile(uint16_t tx, uint16_t ty) {
-    if (tx >= GFX_TILES_X || ty >= GFX_TILES_Y) return;
-    uint16_t tile_index = tilemap_back[_tile_index(tx, ty)];
-    uint16_t screen_x = tx * GFX_TILE_W;
-    uint16_t screen_y = ty * GFX_TILE_H;
-
+/* Draw a tile into the framebuffer at pixel position (screen_x, screen_y) */
+static void _draw_tile_to_framebuffer(uint16_t tile_index, uint16_t screen_x, uint16_t screen_y) {
+    /* Draw tile pixels into framebuffer */
     if (tile_index == UINT16_MAX) {
-        /* blank: fill with background colour */
-        /* use lcd_solid_rectangle for simplicity */
-        lcd_solid_rectangle(background, screen_x, screen_y, GFX_TILE_W, GFX_TILE_H);
-        /* sync front map */
-        tilemap_front[_tile_index(tx, ty)] = tile_index;
+        /* Blank tile - fill with background color */
+        for (uint16_t y = 0; y < GFX_TILE_H; y++) {
+            for (uint16_t x = 0; x < GFX_TILE_W; x++) {
+                uint16_t fx = screen_x + x;
+                uint16_t fy = screen_y + y;
+                if (fx < WIDTH && fy < HEIGHT) {
+                    framebuffer[_fb_index(fx, fy)] = background;
+                }
+            }
+        }
         return;
     }
-    if (tilesheet == NULL) return; /* nothing to draw */
-    if (tile_index >= tiles_count) return;
 
-    const uint16_t *tile_pixels = tilesheet + (size_t)tile_index * (GFX_TILE_W * GFX_TILE_H);
-    lcd_blit(tile_pixels, screen_x, screen_y, GFX_TILE_W, GFX_TILE_H);
-    tilemap_front[_tile_index(tx, ty)] = tile_index;
-}
-
-/* Internal: draw tile at tx,ty from tile_index (no frontmap update) */
-static void _draw_tile_pixels(uint16_t tile_index, uint16_t screen_x, uint16_t screen_y) {
-    if (tile_index == UINT16_MAX) {
-        lcd_solid_rectangle(background, screen_x, screen_y, GFX_TILE_W, GFX_TILE_H);
+    if (!tilesheet || tile_index >= tiles_count) {
+        /* Invalid tile - fill with background */
+        for (uint16_t y = 0; y < GFX_TILE_H; y++) {
+            for (uint16_t x = 0; x < GFX_TILE_W; x++) {
+                uint16_t fx = screen_x + x;
+                uint16_t fy = screen_y + y;
+                if (fx < WIDTH && fy < HEIGHT) {
+                    framebuffer[_fb_index(fx, fy)] = background;
+                }
+            }
+        }
         return;
     }
-    if (!tilesheet) return;
-    if (tile_index >= tiles_count) return;
+
+    /* Copy tile pixels to framebuffer */
     const uint16_t *tile_pixels = tilesheet + (size_t)tile_index * (GFX_TILE_W * GFX_TILE_H);
-    lcd_blit(tile_pixels, screen_x, screen_y, GFX_TILE_W, GFX_TILE_H);
+    for (uint16_t y = 0; y < GFX_TILE_H; y++) {
+        for (uint16_t x = 0; x < GFX_TILE_W; x++) {
+            uint16_t fx = screen_x + x;
+            uint16_t fy = screen_y + y;
+            if (fx < WIDTH && fy < HEIGHT) {
+                framebuffer[_fb_index(fx, fy)] = tile_pixels[y * GFX_TILE_W + x];
+            }
+        }
+    }
 }
 
-/* Helper: redraw tiles covered by a rectangular region (to erase sprite) */
-static void _redraw_region(int16_t x, int16_t y, uint8_t w, uint8_t h) {
+/* Erase sprite from framebuffer by redrawing tiles underneath */
+static void _erase_sprite_from_framebuffer(int16_t x, int16_t y, uint8_t w, uint8_t h) {
     if (w == 0 || h == 0) return;
 
     /* Calculate which tiles are affected */
@@ -229,71 +118,164 @@ static void _redraw_region(int16_t x, int16_t y, uint8_t w, uint8_t h) {
     if (tile_x_end >= GFX_TILES_X) tile_x_end = GFX_TILES_X - 1;
     if (tile_y_end >= GFX_TILES_Y) tile_y_end = GFX_TILES_Y - 1;
 
-    /* Redraw affected tiles */
+    /* Redraw affected tiles into framebuffer */
     for (int16_t ty = tile_y_start; ty <= tile_y_end; ty++) {
         for (int16_t tx = tile_x_start; tx <= tile_x_end; tx++) {
             uint32_t idx = _tile_index(tx, ty);
-            uint16_t t = tilemap_back[idx];
+            uint16_t tile_idx = tilemap[idx];
             uint16_t sx = tx * GFX_TILE_W;
             uint16_t sy = ty * GFX_TILE_H;
-            _draw_tile_pixels(t, sx, sy);
-            tilemap_front[idx] = t;
+            _draw_tile_to_framebuffer(tile_idx, sx, sy);
         }
     }
 }
 
-/* Present: compare backmap to frontmap, draw changed tiles, then draw sprites (sorted by z)
-   After present, frontmap is updated to match backmap.
-*/
-void gfx_present(void) {
-    /* VBlank synchronization: wait until next vblank period to reduce tearing */
-    if (vblank_sync_enabled) {
-        // Wait until the next vblank time
-        sleep_until(next_vblank_time);
+/* Draw sprite into framebuffer with transparency */
+static void _draw_sprite_to_framebuffer(const gfx_sprite_info_t *s) {
+    if (!s->active || !s->image || s->w == 0 || s->h == 0) return;
 
-        // Schedule next vblank
+    /* Draw sprite pixels into framebuffer */
+    for (uint16_t yy = 0; yy < s->h; yy++) {
+        for (uint16_t xx = 0; xx < s->w; xx++) {
+            int scr_x = s->x + xx;
+            int scr_y = s->y + yy;
+
+            /* Clip to screen bounds */
+            if (scr_x < 0 || scr_y < 0 || scr_x >= (int)WIDTH || scr_y >= (int)HEIGHT) {
+                continue;
+            }
+
+            uint32_t sprite_idx = (uint32_t)yy * s->w + xx;
+            uint16_t pixel = s->image[sprite_idx];
+
+            /* Only draw non-transparent pixels */
+            if (pixel != GFX_TRANSPARENT_COLOR) {
+                framebuffer[_fb_index(scr_x, scr_y)] = pixel;
+            }
+        }
+    }
+}
+
+/* Rebuild entire framebuffer from tiles */
+static void _rebuild_framebuffer(void) {
+    /* Draw all tiles into framebuffer */
+    for (uint16_t ty = 0; ty < GFX_TILES_Y; ty++) {
+        for (uint16_t tx = 0; tx < GFX_TILES_X; tx++) {
+            uint32_t idx = _tile_index(tx, ty);
+            uint16_t tile_idx = tilemap[idx];
+            uint16_t sx = tx * GFX_TILE_W;
+            uint16_t sy = ty * GFX_TILE_H;
+            _draw_tile_to_framebuffer(tile_idx, sx, sy);
+        }
+    }
+
+    framebuffer_dirty = false;
+}
+
+/* Initialize gfx */
+void gfx_init(const uint16_t *tilesheet_ptr, uint16_t tcount) {
+    tilesheet = tilesheet_ptr;
+    tiles_count = tcount;
+
+    /* Init tilemap to "blank" sentinel (UINT16_MAX) */
+    for (uint32_t i = 0; i < GFX_TILEMAP_SIZE; i++) {
+        tilemap[i] = UINT16_MAX;
+    }
+
+    /* Clear sprites */
+    for (int i = 0; i < GFX_MAX_SPRITES; i++) {
+        sprites[i].active = false;
+        sprites[i].image = NULL;
+        sprites[i].has_prev = false;
+    }
+
+    /* Initialize vblank timer */
+    next_vblank_time = make_timeout_time_us(VBLANK_PERIOD_US);
+
+    /* Mark framebuffer as needing rebuild */
+    framebuffer_dirty = true;
+}
+
+/* Set / replace tilesheet pointer */
+void gfx_set_tilesheet(const uint16_t *tilesheet_ptr, uint16_t tcount) {
+    tilesheet = tilesheet_ptr;
+    tiles_count = tcount;
+    framebuffer_dirty = true;
+}
+
+/* Set tile at tilemap coordinates */
+void gfx_set_tile(uint16_t tx, uint16_t ty, uint16_t tile_index) {
+    if (tx >= GFX_TILES_X || ty >= GFX_TILES_Y) return;
+
+    uint32_t idx = _tile_index(tx, ty);
+    if (tilemap[idx] != tile_index) {
+        tilemap[idx] = tile_index;
+
+        /* Redraw this tile into framebuffer immediately if framebuffer is valid */
+        if (!framebuffer_dirty) {
+            uint16_t sx = tx * GFX_TILE_W;
+            uint16_t sy = ty * GFX_TILE_H;
+            _draw_tile_to_framebuffer(tile_index, sx, sy);
+        }
+    }
+}
+
+/* Get current tile index at tx,ty */
+uint16_t gfx_get_tile(uint16_t tx, uint16_t ty) {
+    if (tx >= GFX_TILES_X || ty >= GFX_TILES_Y) return UINT16_MAX;
+    return tilemap[_tile_index(tx, ty)];
+}
+
+/* Clear the tilemap to given tile_index */
+void gfx_clear_backmap(uint16_t tile_index) {
+    for (uint32_t i = 0; i < GFX_TILEMAP_SIZE; i++) {
+        tilemap[i] = tile_index;
+    }
+    framebuffer_dirty = true;
+}
+
+/* Mark framebuffer for full rebuild */
+void gfx_mark_all_dirty(void) {
+    framebuffer_dirty = true;
+}
+
+/* Force draw single tile (updates framebuffer and sends to display) */
+void gfx_force_draw_tile(uint16_t tx, uint16_t ty) {
+    if (tx >= GFX_TILES_X || ty >= GFX_TILES_Y) return;
+
+    uint16_t tile_index = tilemap[_tile_index(tx, ty)];
+    uint16_t screen_x = tx * GFX_TILE_W;
+    uint16_t screen_y = ty * GFX_TILE_H;
+
+    /* Update framebuffer */
+    _draw_tile_to_framebuffer(tile_index, screen_x, screen_y);
+
+    /* Send to display */
+    lcd_blit(&framebuffer[_fb_index(screen_x, screen_y)], screen_x, screen_y, GFX_TILE_W, GFX_TILE_H);
+}
+
+/* Present: update framebuffer and send to display */
+void gfx_present(void) {
+    /* VBlank synchronization: wait until next vblank period 
+    if (vblank_sync_enabled) {
+        sleep_until(next_vblank_time);
         next_vblank_time = delayed_by_us(next_vblank_time, VBLANK_PERIOD_US);
     }
+    */
 
-    /* First, erase previous sprite positions by redrawing tiles underneath */
+    /* Rebuild framebuffer if needed (full redraw) */
+    if (framebuffer_dirty) {
+        _rebuild_framebuffer();
+    }
+
+    /* Erase previous sprite positions by redrawing tiles */
     for (int i = 0; i < GFX_MAX_SPRITES; i++) {
         if (sprites[i].active && sprites[i].has_prev) {
-            /* Redraw tiles at previous sprite position */
-            _redraw_region(sprites[i].prev_x, sprites[i].prev_y, sprites[i].w, sprites[i].h);
+            _erase_sprite_from_framebuffer(sprites[i].prev_x, sprites[i].prev_y, sprites[i].w, sprites[i].h);
         }
     }
 
-    /* Draw tiles that changed (or everything if forced) */
-    if (force_full_redraw) {
-        for (uint16_t ty = 0; ty < GFX_TILES_Y; ty++) {
-            for (uint16_t tx = 0; tx < GFX_TILES_X; tx++) {
-                uint32_t idx = _tile_index(tx, ty);
-                uint16_t t = tilemap_back[idx];
-                uint16_t sx = tx * GFX_TILE_W;
-                uint16_t sy = ty * GFX_TILE_H;
-                _draw_tile_pixels(t, sx, sy);
-                tilemap_front[idx] = t;
-            }
-        }
-        force_full_redraw = false;
-    } else {
-        for (uint16_t ty = 0; ty < GFX_TILES_Y; ty++) {
-            for (uint16_t tx = 0; tx < GFX_TILES_X; tx++) {
-                uint32_t idx = _tile_index(tx, ty);
-                uint16_t t_back = tilemap_back[idx];
-                uint16_t t_front = tilemap_front[idx];
-                if (t_back != t_front) {
-                    uint16_t sx = tx * GFX_TILE_W;
-                    uint16_t sy = ty * GFX_TILE_H;
-                    _draw_tile_pixels(t_back, sx, sy);
-                    tilemap_front[idx] = t_back;
-                }
-            }
-        }
-    }
-
-    /* Draw sprites: sort by z (simple stable selection) */
-    /* Build index list of active sprites */
+    /* Sort sprites by z-order */
     int active_ids[GFX_MAX_SPRITES];
     int active_count = 0;
     for (int i = 0; i < GFX_MAX_SPRITES; i++) {
@@ -302,7 +284,7 @@ void gfx_present(void) {
         }
     }
 
-    /* simple insertion sort by z */
+    /* Simple insertion sort by z */
     for (int i = 1; i < active_count; i++) {
         int key = active_ids[i];
         int j = i - 1;
@@ -313,92 +295,30 @@ void gfx_present(void) {
         active_ids[j + 1] = key;
     }
 
-    /* For each sprite, composite its image over current tiles and blit */
-    /* We'll create a temporary buffer sized w*h for each sprite (stack allocate if small) */
+    /* Draw sprites into framebuffer */
     for (int idx_i = 0; idx_i < active_count; idx_i++) {
         int si = active_ids[idx_i];
         gfx_sprite_info_t *s = &sprites[si];
-        if (!s->active) continue;
 
-        /* Clip quickly if entire sprite off-screen */
+        /* Skip if entirely off-screen */
         if (s->x + s->w <= 0 || s->y + s->h <= 0 || s->x >= (int)WIDTH || s->y >= (int)HEIGHT) {
             continue;
         }
 
-        /* Allocate temp buffer from pool (avoids malloc/free with async DMA) */
-        size_t spixels = (size_t)s->w * s->h;
+        /* Draw sprite to framebuffer */
+        _draw_sprite_to_framebuffer(s);
 
-        /* Check if sprite fits in our buffer pool */
-        uint16_t *temp = NULL;
-        if (spixels <= MAX_SPRITE_PIXELS) {
-            temp = gfx_alloc_sprite_buffer();
-        }
-
-        /* If pool allocation failed or sprite too large, use malloc as fallback */
-        if (!temp) {
-            temp = malloc(spixels * sizeof(uint16_t));
-        }
-
-        if (!temp) continue; /* allocation failed -> skip sprite */
-
-        /* Composite each pixel:
-           if sprite pixel != TRANSPARENT -> use it
-           else -> get corresponding background pixel by sampling tilesheet from tilemap_back (already drawn on screen)
-        */
-        for (uint16_t yy = 0; yy < s->h; yy++) {
-            for (uint16_t xx = 0; xx < s->w; xx++) {
-                int scr_x = s->x + xx;
-                int scr_y = s->y + yy;
-                uint16_t outpix = background; /* fallback */
-                if (scr_x < 0 || scr_y < 0 || scr_x >= (int)WIDTH || scr_y >= (int)HEIGHT) {
-                    /* off screen pixel -> don't draw (we still fill temporary to keep indexing simple) */
-                    outpix = background;
-                } else {
-                    uint32_t sprite_idx = (uint32_t)yy * s->w + xx;
-                    uint16_t spx = s->image[sprite_idx];
-                    if (spx != GFX_TRANSPARENT_COLOR) {
-                        outpix = spx;
-                    } else {
-                        /* find which tile covers scr_x,scr_y and sample its pixel from tilesheet */
-                        uint16_t tx = scr_x / GFX_TILE_W;
-                        uint16_t ty = scr_y / GFX_TILE_H;
-                        uint32_t tmap_i = _tile_index(tx, ty);
-                        uint16_t tindex = tilemap_back[tmap_i]; /* background tile from backmap */
-                        if (tindex == UINT16_MAX || tilesheet == NULL || tindex >= tiles_count) {
-                            outpix = background;
-                        } else {
-                            /* pixel within tile */
-                            uint16_t px_in_tile = scr_x % GFX_TILE_W;
-                            uint16_t py_in_tile = scr_y % GFX_TILE_H;
-                            const uint16_t *tile_pixels = tilesheet + (size_t)tindex * (GFX_TILE_W * GFX_TILE_H);
-                            outpix = tile_pixels[(size_t)py_in_tile * GFX_TILE_W + px_in_tile];
-                        }
-                    }
-                }
-                temp[(size_t)yy * s->w + xx] = outpix;
-            }
-        }
-
-        /* Blit composed sprite block (lcd_blit handles windowing/clipping) */
-        lcd_blit(temp, (uint16_t) s->x, (uint16_t) s->y, s->w, s->h);
-
-        /* NOTE: With double buffering, we DON'T free immediately.
-         * The buffer remains valid because:
-         * 1. We use a pool of 2 buffers
-         * 2. While DMA transfers buffer 0, we prepare sprites in buffer 1
-         * 3. Next sprite will get the other buffer from the pool
-         * 4. By the time we loop back, DMA has completed and buffer is free
-         */
-        gfx_free_sprite_buffer(temp);
-
-        /* Save current position as previous for next frame */
+        /* Save position for next frame */
         s->prev_x = s->x;
         s->prev_y = s->y;
         s->has_prev = true;
     }
+
+    /* Send entire framebuffer to display */
+    lcd_blit(framebuffer, 0, 0, WIDTH, HEIGHT);
 }
 
-/* Sprites API implementations */
+/* Sprite API implementations */
 gfx_sprite_t gfx_create_sprite(const uint16_t *image, uint8_t w, uint8_t h, int16_t x, int16_t y, uint8_t z) {
     for (int i = 0; i < GFX_MAX_SPRITES; i++) {
         if (!sprites[i].active) {
@@ -409,7 +329,7 @@ gfx_sprite_t gfx_create_sprite(const uint16_t *image, uint8_t w, uint8_t h, int1
             sprites[i].x = x;
             sprites[i].y = y;
             sprites[i].z = z;
-            sprites[i].has_prev = false; /* No previous position yet */
+            sprites[i].has_prev = false;
             return i;
         }
     }
@@ -419,9 +339,9 @@ gfx_sprite_t gfx_create_sprite(const uint16_t *image, uint8_t w, uint8_t h, int1
 bool gfx_destroy_sprite(gfx_sprite_t id) {
     if (id < 0 || id >= GFX_MAX_SPRITES) return false;
 
-    /* Erase sprite at current position before destroying */
+    /* Erase sprite from framebuffer before destroying */
     if (sprites[id].active && sprites[id].has_prev) {
-        _redraw_region(sprites[id].x, sprites[id].y, sprites[id].w, sprites[id].h);
+        _erase_sprite_from_framebuffer(sprites[id].prev_x, sprites[id].prev_y, sprites[id].w, sprites[id].h);
     }
 
     sprites[id].active = false;
@@ -454,11 +374,11 @@ bool gfx_set_sprite_image(gfx_sprite_t id, const uint16_t *image, uint8_t w, uin
     return true;
 }
 
-/* Fill rectangle in tile units on backmap */
+/* Fill rectangle in tile units */
 void gfx_fill_tiles_rect(uint16_t tx, uint16_t ty, uint16_t tw, uint16_t th, uint16_t tile_index) {
     for (uint16_t yy = ty; yy < ty + th && yy < GFX_TILES_Y; yy++) {
         for (uint16_t xx = tx; xx < tx + tw && xx < GFX_TILES_X; xx++) {
-            tilemap_back[_tile_index(xx, yy)] = tile_index;
+            gfx_set_tile(xx, yy, tile_index);
         }
     }
 }
@@ -467,7 +387,6 @@ void gfx_fill_tiles_rect(uint16_t tx, uint16_t ty, uint16_t tw, uint16_t th, uin
 void gfx_set_vblank_sync(bool enabled) {
     vblank_sync_enabled = enabled;
     if (enabled) {
-        // Reset vblank timer when re-enabling
         next_vblank_time = make_timeout_time_us(VBLANK_PERIOD_US);
     }
 }

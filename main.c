@@ -186,7 +186,7 @@ int main()
         printf("Warning: DS3231 RTC not detected\n\n");
     }
 
-    //JOBOND
+    //JOBOND: TEMPORARILY DISABLED
     //test_wifi();
 
     // A very simple REPL
