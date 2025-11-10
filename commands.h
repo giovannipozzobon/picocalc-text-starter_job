@@ -68,6 +68,10 @@ void viewtext_filename(const char *filename);
 void showimg(void);
 void showimg_filename(const char *filename);
 
-// Sprite tesr
+// Sprite test
 void show_sprite(void);
 void sprite_frame(int16_t *sx, int16_t *velocity);
+
+// Text editor
+void ted(void);
+void ted_filename(const char *filename);
