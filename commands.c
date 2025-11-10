@@ -1703,6 +1703,7 @@ typedef struct {
 // Forward declarations for internal functions
 static void ted_draw_screen(ted_buffer_t *buf);
 static void ted_draw_status_bar(ted_buffer_t *buf);
+static void ted_refresh_display(ted_buffer_t *buf); // Optimized partial redraw
 static void ted_insert_char(ted_buffer_t *buf, char c);
 static void ted_delete_char(ted_buffer_t *buf);
 static void ted_newline(ted_buffer_t *buf);
@@ -1840,6 +1841,49 @@ static void ted_draw_status_bar(ted_buffer_t *buf)
     lcd_set_reverse(true);
     lcd_putstr(0, 31, status);
     lcd_set_reverse(false);
+}
+
+// Optimized refresh: redraw current line, status bar, and reposition cursor (no full screen redraw)
+static void ted_refresh_display(ted_buffer_t *buf)
+{
+    // Redraw current line only (to show new character or deletion)
+    int screen_row = buf->cursor_row - buf->scroll_offset;
+
+    // Only redraw if cursor is in visible area
+    if (screen_row >= 0 && screen_row < TED_SCREEN_ROWS) {
+        char display_line[TED_SCREEN_COLS + 1];
+        char *line = buf->lines[buf->cursor_row];
+        int len = strlen(line);
+
+        // Prepare exactly 40 characters
+        if (len >= TED_SCREEN_COLS) {
+            strncpy(display_line, line, TED_SCREEN_COLS);
+            display_line[TED_SCREEN_COLS] = '\0';
+        } else {
+            strcpy(display_line, line);
+            // Pad with spaces to clear any old content
+            for (int i = len; i < TED_SCREEN_COLS; i++) {
+                display_line[i] = ' ';
+            }
+            display_line[TED_SCREEN_COLS] = '\0';
+        }
+
+        lcd_putstr(0, screen_row, display_line);
+    }
+
+    // Update status bar
+    ted_draw_status_bar(buf);
+
+    // Position cursor using VT100 codes (ensure it's within bounds)
+    if (screen_row < 0) screen_row = 0;
+    if (screen_row >= TED_SCREEN_ROWS) screen_row = TED_SCREEN_ROWS - 1;
+
+    int screen_col = buf->cursor_col;
+    if (screen_col < 0) screen_col = 0;
+    if (screen_col >= TED_SCREEN_COLS) screen_col = TED_SCREEN_COLS - 1;
+
+    // Move cursor (VT100 is 1-indexed)
+    printf("\033[%d;%dH", screen_row + 1, screen_col + 1);
 }
 
 // Ensure cursor is visible by adjusting scroll offset
@@ -2242,72 +2286,112 @@ void ted_filename(const char *filename)
 
     // Main editor loop
     bool running = true;
+    int prev_scroll_offset = buf.scroll_offset;
+
     while (running) {
         keyboard_poll();
 
         if (keyboard_key_available()) {
             int key = keyboard_get_key();
-            bool redraw = false;
+            bool need_full_redraw = false;
+            bool need_refresh = false;
 
             // Handle special keys
             if (key == KEY_ESC) {
                 if (ted_confirm_exit(&buf)) {
                     running = false;
                 }
-                redraw = true;
+                need_full_redraw = true;
             }
             else if (key == KEY_F1) {
-                // Load
+                // Load - full screen needs redraw
                 ted_load(&buf);
-                redraw = true;
+                need_full_redraw = true;
             }
             else if (key == KEY_F2) {
-                // Save
+                // Save - full screen needs redraw (shows confirmation message)
                 ted_save(&buf);
-                redraw = true;
+                need_full_redraw = true;
             }
             else if (key == KEY_F3) {
-                // Save As
+                // Save As - full screen needs redraw (shows confirmation message)
                 ted_save_as(&buf);
-                redraw = true;
+                need_full_redraw = true;
             }
             else if (key == KEY_F6) {
-                // Show directory
+                // Show directory - full screen needs redraw
                 ted_show_dir();
-                redraw = true;
+                need_full_redraw = true;
             }
             else if (key == KEY_UP) {
+                prev_scroll_offset = buf.scroll_offset;
                 ted_move_cursor(&buf, -1, 0);
-                redraw = true;
+                // Check if scroll changed
+                if (buf.scroll_offset != prev_scroll_offset) {
+                    need_full_redraw = true;
+                } else {
+                    need_refresh = true;
+                }
             }
             else if (key == KEY_DOWN) {
+                prev_scroll_offset = buf.scroll_offset;
                 ted_move_cursor(&buf, 1, 0);
-                redraw = true;
+                // Check if scroll changed
+                if (buf.scroll_offset != prev_scroll_offset) {
+                    need_full_redraw = true;
+                } else {
+                    need_refresh = true;
+                }
             }
             else if (key == KEY_LEFT) {
                 ted_move_cursor(&buf, 0, -1);
-                redraw = true;
+                need_refresh = true;
             }
             else if (key == KEY_RIGHT) {
                 ted_move_cursor(&buf, 0, 1);
-                redraw = true;
+                need_refresh = true;
             }
             else if (key == KEY_BACKSPACE) {
+                prev_scroll_offset = buf.scroll_offset;
+                int prev_row = buf.cursor_row;
                 ted_delete_char(&buf);
-                redraw = true;
+                // Check if we merged lines or scroll changed
+                if (buf.cursor_row != prev_row || buf.scroll_offset != prev_scroll_offset) {
+                    need_full_redraw = true;
+                } else {
+                    need_refresh = true;
+                }
             }
             else if (key == KEY_ENTER || key == KEY_RETURN) {
+                // Newline modifies multiple lines, needs full redraw
+                prev_scroll_offset = buf.scroll_offset;
                 ted_newline(&buf);
-                redraw = true;
+                // Always need full redraw for newline (or check if scroll changed)
+                if (buf.scroll_offset != prev_scroll_offset) {
+                    need_full_redraw = true;
+                } else {
+                    // Even without scroll, newline affects multiple lines
+                    need_full_redraw = true;
+                }
             }
             else if (key >= 32 && key <= 126) {
-                // Printable character
+                // Printable character - single line edit
+                prev_scroll_offset = buf.scroll_offset;
                 ted_insert_char(&buf, (char)key);
-                redraw = true;
+                // Check if scroll changed (unlikely but possible)
+                if (buf.scroll_offset != prev_scroll_offset) {
+                    need_full_redraw = true;
+                } else {
+                    need_refresh = true;
+                }
             }
 
-            if (redraw) {
+            // Choose appropriate redraw method
+            if (need_full_redraw) {
                 ted_draw_screen(&buf);
+                prev_scroll_offset = buf.scroll_offset;
+            } else if (need_refresh) {
+                ted_refresh_display(&buf);
             }
         }
 
