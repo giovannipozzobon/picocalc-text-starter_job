@@ -2142,15 +2142,19 @@ static void ted_show_dir(void)
     }
 }
 
-// Confirm exit if modified
+// Confirm exit (always ask for confirmation)
 static bool ted_confirm_exit(ted_buffer_t *buf)
 {
-    if (!buf->modified) {
-        return true;
-    }
-
+    // Position cursor at status bar row for prompt
     printf("\033[32;1H\033[K");
-    printf("File modified. Save? (y/n/c to cancel): ");
+
+    if (buf->modified) {
+        // File has unsaved changes
+        printf("File modified. Save? (y/n/c to cancel): ");
+    } else {
+        // File not modified, but still ask for confirmation
+        printf("Exit editor? (y/n): ");
+    }
 
     keyboard_poll();
     while (!keyboard_key_available()) {
@@ -2160,16 +2164,30 @@ static bool ted_confirm_exit(ted_buffer_t *buf)
 
     int key = keyboard_get_key();
 
-    if (key == 'y' || key == 'Y') {
-        return ted_save(buf);
-    } else if (key == 'n' || key == 'N') {
-        return true;
+    if (buf->modified) {
+        // If file was modified, offer save option
+        if (key == 'y' || key == 'Y') {
+            return ted_save(buf);
+        } else if (key == 'n' || key == 'N') {
+            return true;  // Exit without saving
+        } else {
+            // Cancel exit
+            printf("\033[32;1H\033[K");
+            printf("Exit cancelled");
+            sleep_ms(1000);
+            return false;
+        }
     } else {
-        // Cancel
-        printf("\033[32;1H\033[K");
-        printf("Exit cancelled");
-        sleep_ms(1000);
-        return false;
+        // File not modified, simple yes/no
+        if (key == 'y' || key == 'Y') {
+            return true;  // Confirm exit
+        } else {
+            // Cancel exit (any other key)
+            printf("\033[32;1H\033[K");
+            printf("Exit cancelled");
+            sleep_ms(1000);
+            return false;
+        }
     }
 }
 
