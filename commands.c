@@ -60,6 +60,7 @@ static const command_t commands[] = {
     {"sdcard", sd_status, "Show SD card status"},
     {"showimg", showimg, "Display image from SD card"},
     {"songs", show_song_library, "Show song library"},
+    {"ted", ted, "Text editor"},
     {"test", test, "Run a test"},
     {"tests", show_test_library, "Show test library"},
     {"time", rtc_time, "Show/set DS3231 RTC time"},
@@ -289,6 +290,10 @@ void run_command(const char *command)
             else if (strcmp(cmd_args[0], "viewtext") == 0 && cmd_args[1] != NULL)
             {
                 viewtext_filename(condense(cmd_args[1]));
+            }
+            else if (strcmp(cmd_args[0], "ted") == 0 && cmd_args[1] != NULL)
+            {
+                ted_filename(condense(cmd_args[1]));
             }
             else if (strcmp(cmd_args[0], "show_sprite") == 0 && cmd_args[1] != NULL)
                         {
@@ -1673,6 +1678,635 @@ void viewtext_filename(const char *filename)
 
     // Restore screen
     lcd_clear_screen();
+    lcd_enable_cursor(true);
+}
+
+//
+// Text Editor (TED) - Simple text editor with SD card support
+//
+
+#define TED_MAX_LINES 1000
+#define TED_MAX_LINE_LENGTH 80
+#define TED_SCREEN_ROWS 31  // 320 pixels / 10 pixels per char = 32 rows, -1 for status bar
+#define TED_SCREEN_COLS 40  // 320 pixels / 8 pixels per char = 40 columns
+
+typedef struct {
+    char **lines;           // Array of text lines
+    int num_lines;          // Number of lines in buffer
+    int cursor_row;         // Current cursor row
+    int cursor_col;         // Current cursor column
+    int scroll_offset;      // Top line displayed on screen
+    bool modified;          // Has buffer been modified since last save?
+    char filename[256];     // Current filename (or "undefined.txt")
+} ted_buffer_t;
+
+// Forward declarations for internal functions
+static void ted_draw_screen(ted_buffer_t *buf);
+static void ted_draw_status_bar(ted_buffer_t *buf);
+static void ted_insert_char(ted_buffer_t *buf, char c);
+static void ted_delete_char(ted_buffer_t *buf);
+static void ted_newline(ted_buffer_t *buf);
+static void ted_move_cursor(ted_buffer_t *buf, int dr, int dc);
+static bool ted_save(ted_buffer_t *buf);
+static bool ted_save_as(ted_buffer_t *buf);
+static bool ted_load(ted_buffer_t *buf);
+static void ted_show_dir(void);
+static bool ted_confirm_exit(ted_buffer_t *buf);
+static void ted_init_buffer(ted_buffer_t *buf, const char *filename);
+static void ted_free_buffer(ted_buffer_t *buf);
+
+// Initialize editor buffer
+static void ted_init_buffer(ted_buffer_t *buf, const char *filename)
+{
+    buf->lines = (char **)malloc(TED_MAX_LINES * sizeof(char *));
+    buf->num_lines = 1;
+    buf->lines[0] = (char *)malloc(TED_MAX_LINE_LENGTH);
+    buf->lines[0][0] = '\0';
+    buf->cursor_row = 0;
+    buf->cursor_col = 0;
+    buf->scroll_offset = 0;
+    buf->modified = false;
+
+    if (filename != NULL) {
+        strncpy(buf->filename, filename, sizeof(buf->filename) - 1);
+        buf->filename[sizeof(buf->filename) - 1] = '\0';
+    } else {
+        strcpy(buf->filename, "undefined.txt");
+    }
+}
+
+// Free editor buffer
+static void ted_free_buffer(ted_buffer_t *buf)
+{
+    for (int i = 0; i < buf->num_lines; i++) {
+        free(buf->lines[i]);
+    }
+    free(buf->lines);
+}
+
+// Draw the entire screen
+static void ted_draw_screen(ted_buffer_t *buf)
+{
+    // Clear screen using LCD function
+    lcd_clear_screen();
+
+    // Draw visible lines using direct LCD functions (avoids printf scroll)
+    for (int screen_row = 0; screen_row < TED_SCREEN_ROWS; screen_row++) {
+        int line_idx = buf->scroll_offset + screen_row;
+
+        // Prepare line content (exactly 40 chars to prevent wrap)
+        char display_line[TED_SCREEN_COLS + 1];
+
+        if (line_idx < buf->num_lines) {
+            int copy_len = strlen(buf->lines[line_idx]);
+            if (copy_len > TED_SCREEN_COLS) {
+                copy_len = TED_SCREEN_COLS;
+            }
+
+            // Copy text
+            strncpy(display_line, buf->lines[line_idx], copy_len);
+
+            // Pad with spaces to exactly 40 chars
+            for (int i = copy_len; i < TED_SCREEN_COLS; i++) {
+                display_line[i] = ' ';
+            }
+        } else {
+            // Empty line - fill with spaces
+            for (int i = 0; i < TED_SCREEN_COLS; i++) {
+                display_line[i] = ' ';
+            }
+        }
+
+        display_line[TED_SCREEN_COLS] = '\0';
+
+        // Use lcd_putstr to avoid printf scroll issues
+        lcd_putstr(0, screen_row, display_line);
+    }
+
+    ted_draw_status_bar(buf);
+
+    // Position cursor using VT100 codes (ensure it's within bounds)
+    int screen_row = buf->cursor_row - buf->scroll_offset;
+    if (screen_row < 0) screen_row = 0;
+    if (screen_row >= TED_SCREEN_ROWS) screen_row = TED_SCREEN_ROWS - 1;
+
+    int screen_col = buf->cursor_col;
+    if (screen_col < 0) screen_col = 0;
+    if (screen_col >= TED_SCREEN_COLS) screen_col = TED_SCREEN_COLS - 1;
+
+    // Move cursor (VT100 is 1-indexed)
+    printf("\033[%d;%dH", screen_row + 1, screen_col + 1);
+}
+
+// Draw status bar at bottom
+static void ted_draw_status_bar(ted_buffer_t *buf)
+{
+    // Count total characters
+    int total_chars = 0;
+    for (int i = 0; i < buf->num_lines; i++) {
+        total_chars += strlen(buf->lines[i]);
+    }
+
+    // Truncate filename if too long (leave space for status info)
+    char short_filename[16];
+    if (strlen(buf->filename) > 14) {
+        strncpy(short_filename, buf->filename, 11);
+        short_filename[11] = '\0';
+        strcat(short_filename, "...");
+    } else {
+        strcpy(short_filename, buf->filename);
+    }
+
+    // Build status string with exactly 40 characters
+    char status[TED_SCREEN_COLS + 1];
+    int written = snprintf(status, sizeof(status), " %s%s|L:%d C:%d",
+                          short_filename,
+                          buf->modified ? "*" : "",
+                          buf->num_lines,
+                          total_chars);
+
+    // Ensure exactly 40 characters
+    if (written > TED_SCREEN_COLS) {
+        written = TED_SCREEN_COLS;
+    }
+
+    // Pad with spaces to reach exactly 40 chars
+    for (int i = written; i < TED_SCREEN_COLS; i++) {
+        status[i] = ' ';
+    }
+    status[TED_SCREEN_COLS] = '\0';
+
+    // Use lcd_putstr with reverse video for status bar (row 31, 0-indexed)
+    lcd_set_reverse(true);
+    lcd_putstr(0, 31, status);
+    lcd_set_reverse(false);
+}
+
+// Ensure cursor is visible by adjusting scroll offset
+static void ted_ensure_cursor_visible(ted_buffer_t *buf)
+{
+    // Scroll up if cursor is above visible area
+    if (buf->cursor_row < buf->scroll_offset) {
+        buf->scroll_offset = buf->cursor_row;
+    }
+
+    // Scroll down if cursor is below visible area
+    if (buf->cursor_row >= buf->scroll_offset + TED_SCREEN_ROWS) {
+        buf->scroll_offset = buf->cursor_row - TED_SCREEN_ROWS + 1;
+    }
+}
+
+// Insert character at cursor position
+static void ted_insert_char(ted_buffer_t *buf, char c)
+{
+    char *line = buf->lines[buf->cursor_row];
+    int len = strlen(line);
+
+    // Check if line is too long
+    if (len >= TED_MAX_LINE_LENGTH - 1) {
+        return;
+    }
+
+    // Shift characters to make room
+    for (int i = len; i >= buf->cursor_col; i--) {
+        line[i + 1] = line[i];
+    }
+
+    line[buf->cursor_col] = c;
+    buf->cursor_col++;
+    buf->modified = true;
+
+    // Ensure cursor is visible (though horizontal movement doesn't usually need scroll)
+    ted_ensure_cursor_visible(buf);
+}
+
+// Delete character before cursor (backspace)
+static void ted_delete_char(ted_buffer_t *buf)
+{
+    if (buf->cursor_col > 0) {
+        // Delete char in current line
+        char *line = buf->lines[buf->cursor_row];
+        int len = strlen(line);
+
+        for (int i = buf->cursor_col - 1; i < len; i++) {
+            line[i] = line[i + 1];
+        }
+
+        buf->cursor_col--;
+        buf->modified = true;
+    }
+    else if (buf->cursor_row > 0) {
+        // Merge with previous line
+        int prev_row = buf->cursor_row - 1;
+        char *prev_line = buf->lines[prev_row];
+        char *curr_line = buf->lines[buf->cursor_row];
+
+        int prev_len = strlen(prev_line);
+        int curr_len = strlen(curr_line);
+
+        // Check if merged line would be too long
+        if (prev_len + curr_len < TED_MAX_LINE_LENGTH) {
+            strcat(prev_line, curr_line);
+
+            // Remove current line
+            free(buf->lines[buf->cursor_row]);
+            for (int i = buf->cursor_row; i < buf->num_lines - 1; i++) {
+                buf->lines[i] = buf->lines[i + 1];
+            }
+            buf->num_lines--;
+
+            buf->cursor_row--;
+            buf->cursor_col = prev_len;
+            buf->modified = true;
+
+            // Ensure cursor is visible after moving up
+            ted_ensure_cursor_visible(buf);
+        }
+    }
+}
+
+// Insert new line at cursor
+static void ted_newline(ted_buffer_t *buf)
+{
+    if (buf->num_lines >= TED_MAX_LINES) {
+        return;
+    }
+
+    // Split current line at cursor
+    char *curr_line = buf->lines[buf->cursor_row];
+
+    // Make room for new line
+    for (int i = buf->num_lines; i > buf->cursor_row + 1; i--) {
+        buf->lines[i] = buf->lines[i - 1];
+    }
+
+    // Create new line with text after cursor
+    buf->lines[buf->cursor_row + 1] = (char *)malloc(TED_MAX_LINE_LENGTH);
+    strcpy(buf->lines[buf->cursor_row + 1], &curr_line[buf->cursor_col]);
+
+    // Truncate current line at cursor
+    curr_line[buf->cursor_col] = '\0';
+
+    buf->num_lines++;
+    buf->cursor_row++;
+    buf->cursor_col = 0;
+    buf->modified = true;
+
+    // Ensure the new line is visible
+    ted_ensure_cursor_visible(buf);
+}
+
+// Move cursor with bounds checking and scrolling
+static void ted_move_cursor(ted_buffer_t *buf, int dr, int dc)
+{
+    // Vertical movement
+    if (dr != 0) {
+        buf->cursor_row += dr;
+        if (buf->cursor_row < 0) {
+            buf->cursor_row = 0;
+        }
+        if (buf->cursor_row >= buf->num_lines) {
+            buf->cursor_row = buf->num_lines - 1;
+        }
+
+        // Adjust scroll if needed
+        if (buf->cursor_row < buf->scroll_offset) {
+            buf->scroll_offset = buf->cursor_row;
+        }
+        if (buf->cursor_row >= buf->scroll_offset + TED_SCREEN_ROWS) {
+            buf->scroll_offset = buf->cursor_row - TED_SCREEN_ROWS + 1;
+        }
+
+        // Clamp column to line length
+        int line_len = strlen(buf->lines[buf->cursor_row]);
+        if (buf->cursor_col > line_len) {
+            buf->cursor_col = line_len;
+        }
+    }
+
+    // Horizontal movement
+    if (dc != 0) {
+        buf->cursor_col += dc;
+        int line_len = strlen(buf->lines[buf->cursor_row]);
+
+        if (buf->cursor_col < 0) {
+            buf->cursor_col = 0;
+        }
+        if (buf->cursor_col > line_len) {
+            buf->cursor_col = line_len;
+        }
+    }
+}
+
+// Save file with current filename
+static bool ted_save(ted_buffer_t *buf)
+{
+    // If no filename set, call save_as
+    if (strcmp(buf->filename, "undefined.txt") == 0) {
+        return ted_save_as(buf);
+    }
+
+    FILE *fp = fopen(buf->filename, "w");
+    if (fp == NULL) {
+        printf("\033[32;1H\033[K");
+        printf("Error: Cannot save to '%s'", buf->filename);
+        sleep_ms(2000);
+        return false;
+    }
+
+    for (int i = 0; i < buf->num_lines; i++) {
+        fprintf(fp, "%s\n", buf->lines[i]);
+    }
+
+    fclose(fp);
+    buf->modified = false;
+
+    // Show confirmation
+    printf("\033[32;1H\033[K");
+    printf("Saved to '%s'", buf->filename);
+    sleep_ms(1000);
+
+    return true;
+}
+
+// Save with new filename
+static bool ted_save_as(ted_buffer_t *buf)
+{
+    // Show prompt at bottom
+    printf("\033[32;1H\033[K");
+    printf("Save as: ");
+
+    char new_filename[256];
+    readline(new_filename, sizeof(new_filename));
+
+    if (strlen(new_filename) == 0) {
+        printf("\033[32;1H\033[K");
+        printf("Save cancelled");
+        sleep_ms(1000);
+        return false;
+    }
+
+    // Update filename
+    strncpy(buf->filename, new_filename, sizeof(buf->filename) - 1);
+    buf->filename[sizeof(buf->filename) - 1] = '\0';
+
+    return ted_save(buf);
+}
+
+// Load file
+static bool ted_load(ted_buffer_t *buf)
+{
+    // Show prompt at bottom
+    printf("\033[32;1H\033[K");
+    printf("Load file: ");
+
+    char load_filename[256];
+    readline(load_filename, sizeof(load_filename));
+
+    if (strlen(load_filename) == 0) {
+        printf("\033[32;1H\033[K");
+        printf("Load cancelled");
+        sleep_ms(1000);
+        return false;
+    }
+
+    FILE *fp = fopen(load_filename, "r");
+    if (fp == NULL) {
+        printf("\033[32;1H\033[K");
+        printf("Error: Cannot open '%s'", load_filename);
+        sleep_ms(2000);
+        return false;
+    }
+
+    // Free current buffer
+    ted_free_buffer(buf);
+
+    // Reload buffer
+    ted_init_buffer(buf, load_filename);
+
+    // Read file
+    char line_buffer[TED_MAX_LINE_LENGTH];
+    int line_idx = 0;
+
+    while (fgets(line_buffer, sizeof(line_buffer), fp) != NULL && line_idx < TED_MAX_LINES) {
+        // Remove newline
+        int len = strlen(line_buffer);
+        if (len > 0 && line_buffer[len - 1] == '\n') {
+            line_buffer[len - 1] = '\0';
+        }
+
+        if (line_idx > 0) {
+            buf->lines[line_idx] = (char *)malloc(TED_MAX_LINE_LENGTH);
+        }
+
+        strncpy(buf->lines[line_idx], line_buffer, TED_MAX_LINE_LENGTH - 1);
+        buf->lines[line_idx][TED_MAX_LINE_LENGTH - 1] = '\0'; // Explicit null terminator
+        line_idx++;
+    }
+
+    fclose(fp);
+
+    buf->num_lines = line_idx > 0 ? line_idx : 1;
+    buf->modified = false;
+
+    // Show confirmation
+    printf("\033[32;1H\033[K");
+    printf("Loaded '%s'", load_filename);
+    sleep_ms(1000);
+
+    return true;
+}
+
+// Show directory listing
+static void ted_show_dir(void)
+{
+    printf("\033[2J\033[H");
+    printf("Directory listing:\n\n");
+
+    // Call the dir command
+    sd_dir_dirname(".");
+
+    printf("\n\nPress any key to continue...");
+
+    // Wait for keypress
+    keyboard_poll();
+    while (!keyboard_key_available()) {
+        keyboard_poll();
+        sleep_ms(10);
+    }
+    keyboard_get_key();
+
+    // Flush keyboard buffer
+    while (keyboard_key_available()) {
+        keyboard_get_key();
+    }
+}
+
+// Confirm exit if modified
+static bool ted_confirm_exit(ted_buffer_t *buf)
+{
+    if (!buf->modified) {
+        return true;
+    }
+
+    printf("\033[32;1H\033[K");
+    printf("File modified. Save? (y/n/c to cancel): ");
+
+    keyboard_poll();
+    while (!keyboard_key_available()) {
+        keyboard_poll();
+        sleep_ms(10);
+    }
+
+    int key = keyboard_get_key();
+
+    if (key == 'y' || key == 'Y') {
+        return ted_save(buf);
+    } else if (key == 'n' || key == 'N') {
+        return true;
+    } else {
+        // Cancel
+        printf("\033[32;1H\033[K");
+        printf("Exit cancelled");
+        sleep_ms(1000);
+        return false;
+    }
+}
+
+// Main editor function
+void ted(void)
+{
+    ted_filename(NULL);
+}
+
+void ted_filename(const char *filename)
+{
+    ted_buffer_t buf;
+
+    // Initialize buffer
+    ted_init_buffer(&buf, filename);
+
+    // If filename provided, try to load it
+    if (filename != NULL) {
+        FILE *fp = fopen(filename, "r");
+        if (fp != NULL) {
+            // File exists, load it
+            fclose(fp);
+
+            // Read file
+            fp = fopen(filename, "r");
+            char line_buffer[TED_MAX_LINE_LENGTH];
+            int line_idx = 0;
+
+            while (fgets(line_buffer, sizeof(line_buffer), fp) != NULL && line_idx < TED_MAX_LINES) {
+                // Remove newline
+                int len = strlen(line_buffer);
+                if (len > 0 && line_buffer[len - 1] == '\n') {
+                    line_buffer[len - 1] = '\0';
+                }
+
+                if (line_idx > 0) {
+                    buf.lines[line_idx] = (char *)malloc(TED_MAX_LINE_LENGTH);
+                }
+
+                strncpy(buf.lines[line_idx], line_buffer, TED_MAX_LINE_LENGTH - 1);
+                buf.lines[line_idx][TED_MAX_LINE_LENGTH - 1] = '\0'; // Explicit null terminator
+                line_idx++;
+            }
+
+            fclose(fp);
+            buf.num_lines = line_idx > 0 ? line_idx : 1;
+        }
+    }
+
+    // Draw initial screen (cursor management is handled in ted_draw_screen)
+    ted_draw_screen(&buf);
+
+    // Main editor loop
+    bool running = true;
+    while (running) {
+        keyboard_poll();
+
+        if (keyboard_key_available()) {
+            int key = keyboard_get_key();
+            bool redraw = false;
+
+            // Handle special keys
+            if (key == KEY_ESC) {
+                if (ted_confirm_exit(&buf)) {
+                    running = false;
+                }
+                redraw = true;
+            }
+            else if (key == KEY_F1) {
+                // Load
+                ted_load(&buf);
+                redraw = true;
+            }
+            else if (key == KEY_F2) {
+                // Save
+                ted_save(&buf);
+                redraw = true;
+            }
+            else if (key == KEY_F3) {
+                // Save As
+                ted_save_as(&buf);
+                redraw = true;
+            }
+            else if (key == KEY_F6) {
+                // Show directory
+                ted_show_dir();
+                redraw = true;
+            }
+            else if (key == KEY_UP) {
+                ted_move_cursor(&buf, -1, 0);
+                redraw = true;
+            }
+            else if (key == KEY_DOWN) {
+                ted_move_cursor(&buf, 1, 0);
+                redraw = true;
+            }
+            else if (key == KEY_LEFT) {
+                ted_move_cursor(&buf, 0, -1);
+                redraw = true;
+            }
+            else if (key == KEY_RIGHT) {
+                ted_move_cursor(&buf, 0, 1);
+                redraw = true;
+            }
+            else if (key == KEY_BACKSPACE) {
+                ted_delete_char(&buf);
+                redraw = true;
+            }
+            else if (key == KEY_ENTER || key == KEY_RETURN) {
+                ted_newline(&buf);
+                redraw = true;
+            }
+            else if (key >= 32 && key <= 126) {
+                // Printable character
+                ted_insert_char(&buf, (char)key);
+                redraw = true;
+            }
+
+            if (redraw) {
+                ted_draw_screen(&buf);
+            }
+        }
+
+        sleep_ms(10);
+    }
+
+    // Cleanup
+    ted_free_buffer(&buf);
+
+    // Flush keyboard buffer
+    while (keyboard_key_available()) {
+        keyboard_get_key();
+    }
+
+    // Restore screen
+    printf("\033[2J\033[H");  // Clear screen and home
+    printf("\033[?25h");       // Show cursor
     lcd_enable_cursor(true);
 }
 
