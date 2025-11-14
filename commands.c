@@ -26,8 +26,8 @@
 #include "sprites.h"
 #include "tiles.h"
 
-#define STEP_Y 8
-#define STEP_X 8
+#define STEP_Y 4
+#define STEP_X 4
 
 static gfx_sprite_t s;
 
@@ -1323,6 +1323,13 @@ void show_sprite(void)
     gfx_core_start_rendering();
 
     // Continuous loop until user presses ESC
+    // Movement throttling: send position updates at fixed rate (60 FPS)
+    absolute_time_t last_update_time = get_absolute_time();
+    const uint32_t UPDATE_INTERVAL_US = 16667; // ~60 FPS
+    bool position_changed = false;
+    int16_t last_sx = sx;
+    int16_t last_sy = sy;
+
     while (true) {
         // Manually poll keyboard to ensure it's being read
         keyboard_poll();
@@ -1335,7 +1342,7 @@ void show_sprite(void)
                 if (key == KEY_ESC) {  // ESC key
                     break;
                 }
-                // Arrow keys
+                // Arrow keys - update position immediately but don't send yet
                 else if (key == KEY_UP) {  // UP arrow
                     sy -= STEP_Y;
                     if (sy < 0) sy = 0;
@@ -1353,14 +1360,28 @@ void show_sprite(void)
                     if (sx < 0) sx = 0;
                 }
 
-                // Update sprite position
-                gfx_core_gfx_move_sprite(s, sx, sy);
-                // Core 1 renders continuously - no need to call present
+                // Check if position actually changed
+                if (sx != last_sx || sy != last_sy) {
+                    position_changed = true;
+                }
             }
         }
 
-        // Small sleep to avoid hogging CPU
-        sleep_ms(10);
+        // Throttled update: only send position at fixed intervals
+        absolute_time_t current_time = get_absolute_time();
+        int64_t elapsed_us = absolute_time_diff_us(last_update_time, current_time);
+
+        if (position_changed && elapsed_us >= UPDATE_INTERVAL_US) {
+            // Time to send update
+            gfx_core_gfx_move_sprite(s, sx, sy);
+            last_update_time = current_time;
+            last_sx = sx;
+            last_sy = sy;
+            position_changed = false;  // Reset flag after sending
+        }
+
+        // Very short sleep for responsive keyboard polling
+        sleep_us(500);  // 0.5ms for responsive input
     }
 
     // Stop continuous rendering FIRST (blocks until Core 1 stops)

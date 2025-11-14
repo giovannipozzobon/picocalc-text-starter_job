@@ -10,18 +10,18 @@
 #include "pico/multicore.h"
 #include "pico/mutex.h"
 #include "pico/time.h"
+#include "pico/util/queue.h"
 #include <string.h>
 
 // Rendering control
 static volatile bool gfx_core_running = false;
 static volatile bool gfx_core_rendering_enabled = false;
+static volatile bool gfx_core_initialized = false;
 static mutex_t gfx_mutex;
 
-// Command pool (prevents stack corruption issues)
-#define CMD_POOL_SIZE 4
-static gfx_command_t cmd_pool[CMD_POOL_SIZE];
-static volatile int next_cmd_slot = 0;
-static mutex_t cmd_pool_mutex;
+// Command queue (safer than FIFO, with larger buffer)
+#define CMD_QUEUE_SIZE 16
+static queue_t cmd_queue;
 
 // Frame timing (60 FPS)
 #define FRAME_TIME_US 16667  // ~60Hz
@@ -32,22 +32,16 @@ static void gfx_core1_main(void) {
     absolute_time_t next_frame_time = get_absolute_time();
 
     while (gfx_core_running) {
-        // Process any pending commands from FIFO (non-blocking)
-        while (multicore_fifo_rvalid()) {
-            uint32_t cmd_ptr = multicore_fifo_pop_blocking();
-
-            if (cmd_ptr == 0) {
-                // Shutdown command
-                gfx_core_running = false;
-                return;
-            }
-
-            gfx_command_t *cmd = (gfx_command_t *)cmd_ptr;
+        // Process any pending commands from queue (non-blocking)
+        gfx_command_t cmd;
+        while (queue_try_remove(&cmd_queue, &cmd)) {
 
             // Execute command on core 1
-            switch (cmd->type) {
+            switch (cmd.type) {
                 case GFX_CMD_INIT:
-                    gfx_init(cmd->data.init.tilesheet, cmd->data.init.tiles_count);
+                    gfx_init(cmd.data.init.tilesheet, cmd.data.init.tiles_count);
+                    // Signal initialization complete
+                    gfx_core_initialized = true;
                     // Don't enable rendering yet - wait for scene setup
                     break;
 
@@ -60,39 +54,39 @@ static void gfx_core1_main(void) {
                     break;
 
                 case GFX_CMD_SET_TILE:
-                    gfx_set_tile(cmd->data.set_tile.x,
-                                cmd->data.set_tile.y,
-                                cmd->data.set_tile.tile_index);
+                    gfx_set_tile(cmd.data.set_tile.x,
+                                cmd.data.set_tile.y,
+                                cmd.data.set_tile.tile_index);
                     break;
 
                 case GFX_CMD_CLEAR:
-                    gfx_clear_backmap(cmd->data.clear.bg_tile);
+                    gfx_clear_backmap(cmd.data.clear.bg_tile);
                     break;
 
                 case GFX_CMD_CREATE_SPRITE: {
                     int sprite_id = gfx_create_sprite(
-                        cmd->data.create_sprite.image,
-                        cmd->data.create_sprite.w,
-                        cmd->data.create_sprite.h,
-                        cmd->data.create_sprite.x,
-                        cmd->data.create_sprite.y,
-                        cmd->data.create_sprite.z
+                        cmd.data.create_sprite.image,
+                        cmd.data.create_sprite.w,
+                        cmd.data.create_sprite.h,
+                        cmd.data.create_sprite.x,
+                        cmd.data.create_sprite.y,
+                        cmd.data.create_sprite.z
                     );
                     // Store result if pointer provided
-                    if (cmd->data.create_sprite.result_id) {
-                        *cmd->data.create_sprite.result_id = sprite_id;
+                    if (cmd.data.create_sprite.result_id) {
+                        *cmd.data.create_sprite.result_id = sprite_id;
                     }
                     break;
                 }
 
                 case GFX_CMD_MOVE_SPRITE:
-                    gfx_move_sprite(cmd->data.move_sprite.sprite_id,
-                                   cmd->data.move_sprite.x,
-                                   cmd->data.move_sprite.y);
+                    gfx_move_sprite(cmd.data.move_sprite.sprite_id,
+                                   cmd.data.move_sprite.x,
+                                   cmd.data.move_sprite.y);
                     break;
 
                 case GFX_CMD_DESTROY_SPRITE:
-                    gfx_destroy_sprite(cmd->data.destroy_sprite.sprite_id);
+                    gfx_destroy_sprite(cmd.data.destroy_sprite.sprite_id);
                     // Don't disable rendering here - use STOP_RENDERING command explicitly
                     break;
 
@@ -102,11 +96,6 @@ static void gfx_core1_main(void) {
 
                 default:
                     break;
-            }
-
-            // Signal completion back to core 0 (only for INIT - critical for startup)
-            if (cmd->type == GFX_CMD_INIT) {
-                multicore_fifo_push_blocking(1); // ACK
             }
         }
 
@@ -128,7 +117,10 @@ static void gfx_core1_main(void) {
 // Initialize the graphics core system
 void gfx_core_init(void) {
     mutex_init(&gfx_mutex);
-    mutex_init(&cmd_pool_mutex);
+    gfx_core_initialized = false;
+
+    // Initialize command queue (thread-safe, larger buffer than FIFO)
+    queue_init(&cmd_queue, sizeof(gfx_command_t), CMD_QUEUE_SIZE);
 
     // Launch core 1 with graphics loop
     multicore_launch_core1(gfx_core1_main);
@@ -137,30 +129,29 @@ void gfx_core_init(void) {
     sleep_ms(10);
 }
 
-// Send a command to the graphics core (non-blocking for most commands)
+// Send a command to the graphics core (uses queue - thread-safe)
 bool gfx_core_send_command(const gfx_command_t *cmd) {
     if (!gfx_core_running) {
         return false;
     }
 
-    // Get a slot from the command pool (round-robin)
-    mutex_enter_blocking(&cmd_pool_mutex);
-    int slot = next_cmd_slot;
-    next_cmd_slot = (next_cmd_slot + 1) % CMD_POOL_SIZE;
-
-    // Copy command to pool slot (protects against stack corruption)
-    cmd_pool[slot] = *cmd;
-
-    // Send pool slot pointer via FIFO
-    multicore_fifo_push_blocking((uint32_t)&cmd_pool[slot]);
-    mutex_exit(&cmd_pool_mutex);
-
-    // Only wait for ACK on INIT command (critical for startup synchronization)
-    if (cmd->type == GFX_CMD_INIT) {
-        multicore_fifo_pop_blocking();
+    // Add command to queue (thread-safe, no need for manual mutex)
+    // For movement commands, use try_add to avoid blocking
+    // With throttling on Core 0 side (60 FPS), queue should never fill
+    if (cmd->type == GFX_CMD_MOVE_SPRITE) {
+        // Non-blocking for movement
+        // With proper throttling, this should always succeed
+        if (!queue_try_add(&cmd_queue, cmd)) {
+            // Queue full - this indicates Core 1 is overloaded
+            // Skip this update, next one will catch up
+            return false;
+        }
+        return true;
+    } else {
+        // Blocking for critical commands (must not be lost)
+        queue_add_blocking(&cmd_queue, cmd);
+        return true;
     }
-
-    return true;
 }
 
 //
@@ -168,6 +159,8 @@ bool gfx_core_send_command(const gfx_command_t *cmd) {
 //
 
 void gfx_core_gfx_init(const uint16_t *tilesheet_ptr, uint16_t tiles_count) {
+    gfx_core_initialized = false;
+
     gfx_command_t cmd = {
         .type = GFX_CMD_INIT,
         .data.init = {
@@ -176,6 +169,13 @@ void gfx_core_gfx_init(const uint16_t *tilesheet_ptr, uint16_t tiles_count) {
         }
     };
     gfx_core_send_command(&cmd);
+
+    // Wait for Core 1 to complete initialization (critical for proper setup)
+    int timeout = 0;
+    while (!gfx_core_initialized && timeout < 1000) {
+        sleep_us(100); // Wait 100us at a time
+        timeout++;
+    }
 }
 
 void gfx_core_gfx_present(void) {

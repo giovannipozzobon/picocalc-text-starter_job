@@ -177,7 +177,7 @@ int main()
     printf("      Contributed to the community\n");
     printf("            by Blair Leduc.\n\n");
     printf("Type \033[4mhelp\033[0m for a list of commands.\n");
-    printf("Vers 1.1 Jobond \n\n");
+    printf("Vers 1.2 Jobond \n\n");
 
     // Inizializza il DS3231 RTC
     if (ds3231_init()) {
